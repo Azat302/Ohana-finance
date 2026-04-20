@@ -106,8 +106,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
           id: uuidv4(),
           date,
           type: 'staff_hookah',
-          person: formData.get('person') as string,
-          amount: parseFloat(formData.get('amount') as string) || 300,
+          person: 'Кальян', // Default name
+          amount: 0, // No longer affects profit
           count: parseInt(formData.get('count') as string) || 1
         };
         await addOperationAction(newOp);
@@ -124,9 +124,9 @@ export default function OperationalPanel({ initialData, date }: Props) {
           id: uuidv4(),
           date,
           person: formData.get('person') as string,
-          amount: 0, // Price removed from UI
+          amount: 0, 
           count: parseInt(formData.get('count') as string) || 1,
-          note: formData.get('note') as string
+          note: '' // Note removed
         };
         await addDiscountAction(newDisc);
         setData(prev => {
@@ -285,26 +285,27 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 </>
               ) : (
                 <>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Имя / Кто</label>
-                    <input name="person" placeholder="..." className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required autoFocus />
-                  </div>
+                  {modal !== 'staff_hookah' && (
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Имя / Кто</label>
+                      <input name="person" placeholder="..." className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required autoFocus />
+                    </div>
+                  )}
                   {(modal === 'staff_hookah' || modal === 'staff') && (
                     <div className="space-y-1">
                       <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Количество</label>
                       <input name="count" type="number" placeholder="1" defaultValue="1" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
                     </div>
                   )}
-                  {(modal === 'taxi' || modal === 'staff_hookah') && (
+                  {modal === 'taxi' && (
                     <div className="space-y-1">
                       <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Цена за ед. (₽)</label>
-                      <input name="amount" type="number" placeholder={modal === 'staff_hookah' ? '300' : '0'} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
+                      <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
                     </div>
                   )}
                   {modal === 'staff' && (
                     <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Комментарий</label>
-                      <input name="note" placeholder="..." className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" />
+                      {/* Note removed per user request */}
                     </div>
                   )}
                 </>
@@ -465,16 +466,25 @@ export default function OperationalPanel({ initialData, date }: Props) {
         {/* Operations List */}
         {data.operations.length > 0 && (
           <div className="space-y-2">
-            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Операции</div>
+            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Операции и данные</div>
             <div className="space-y-2">
               {data.operations.map(op => (
                 <div key={op.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
                   <div className="flex-1">
                     <div className="font-bold text-sm text-gray-900">{op.type === 'staff_hookah' ? '💨 Кальян' : '🚕 Такси'}</div>
-                    <div className="text-xs font-bold text-gray-400">{op.person} • {op.amount} ₽ {op.count ? `(${op.count} шт)` : ''}</div>
+                    <div className="text-xs font-bold text-gray-400">
+                      {op.type === 'staff_hookah' 
+                        ? `${op.count} шт` 
+                        : `${op.person} • ${op.amount} ₽`}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-sm font-black text-red-500">-{((op.amount || 0) * (op.count || 1)).toLocaleString()} ₽</div>
+                    {op.type === 'taxi' && (
+                      <div className="text-sm font-black text-red-500">-{op.amount.toLocaleString()} ₽</div>
+                    )}
+                    {op.type === 'staff_hookah' && (
+                      <div className="text-sm font-black text-blue-500">{op.count} шт</div>
+                    )}
                     {!isLocked && (
                       <button onClick={() => handleDelete('operations', op.id)} className="bg-red-50 text-red-400 p-3 rounded-xl active:scale-90 transition-all"><Trash2 size={18}/></button>
                     )}
@@ -488,16 +498,16 @@ export default function OperationalPanel({ initialData, date }: Props) {
         {/* Staff List (stored in discounts) */}
         {data.discounts.length > 0 && (
           <div className="space-y-2">
-            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Стафф</div>
+            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Стафф (инфо)</div>
             <div className="space-y-2">
               {data.discounts.map(d => (
                 <div key={d.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
                   <div className="flex-1">
                     <div className="font-bold text-sm text-gray-900">🧑‍🍳 {d.person}</div>
-                    <div className="text-xs font-bold text-gray-400">{d.amount} ₽ {d.count ? `(${d.count} шт)` : ''} {d.note && `• ${d.note}`}</div>
+                    <div className="text-xs font-bold text-gray-400">{d.count} шт</div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-sm font-black text-red-500">-{((d.amount || 0) * (d.count || 1)).toLocaleString()} ₽</div>
+                    <div className="text-sm font-black text-blue-500">{d.count} шт</div>
                     {!isLocked && (
                       <button onClick={() => handleDelete('discounts', d.id)} className="bg-red-50 text-red-400 p-3 rounded-xl active:scale-90 transition-all"><Trash2 size={18}/></button>
                     )}
