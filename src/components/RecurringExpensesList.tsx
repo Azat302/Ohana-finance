@@ -39,56 +39,6 @@ export default function RecurringExpensesList({ initialExpenses }: Props) {
 
   return (
     <div className="space-y-6">
-      <button 
-        onClick={() => {
-          setEditingId('new');
-          setEditForm({ title: '', amount: '', day: '1' });
-        }}
-        className="w-full bg-gray-900 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform"
-      >
-        <Plus size={20} /> Добавить постоянный расход
-      </button>
-
-      {editingId === 'new' && (
-        <div className="bg-white p-6 rounded-2xl shadow-xl border-2 border-blue-500 space-y-4">
-          <input 
-            placeholder="Название" 
-            className="w-full p-3 bg-gray-50 rounded-xl font-bold"
-            value={editForm.title}
-            onChange={e => setEditForm({...editForm, title: e.target.value})}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-black text-gray-400 ml-1">Сумма (₽)</label>
-              <input 
-                type="number" placeholder="Сумма" 
-                className="w-full p-3 bg-gray-50 rounded-xl font-bold"
-                value={editForm.amount}
-                onChange={e => setEditForm({...editForm, amount: e.target.value})}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] uppercase font-black text-gray-400 ml-1">День месяца</label>
-              <input 
-                type="number" placeholder="День" 
-                className="w-full p-3 bg-gray-50 rounded-xl font-bold"
-                value={editForm.day}
-                onChange={e => setEditForm({...editForm, day: e.target.value})}
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => handleSave({ id: uuidv4(), title: editForm.title, amount: parseFloat(editForm.amount) || 0, day_of_month: parseInt(editForm.day) || 1, active: true })}
-              className="flex-1 bg-blue-600 text-white p-3 rounded-xl font-black uppercase tracking-widest text-sm"
-            >
-              Создать
-            </button>
-            <button onClick={() => setEditingId(null)} className="p-3 bg-gray-100 rounded-xl"><X /></button>
-          </div>
-        </div>
-      )}
-
       <div className="space-y-3">
         {expenses.map(exp => (
           <div key={exp.id} className={`bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 flex justify-between items-center ${!exp.active ? 'opacity-50' : ''}`}>

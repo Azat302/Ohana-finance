@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Expense, FullDayData } from '@/types';
-import { addExpenseAction, deleteItemAction, getFullDayAction } from '@/app/actions';
-import { Plus, Trash2, X, Save, Loader2, Lock, Unlock, Calendar, Banknote, CreditCard, Clock } from 'lucide-react';
+import { addExpenseAction, deleteItemAction, getFullDayAction, saveRecurringExpenseAction } from '@/app/actions';
+import { Plus, Trash2, Loader2, Calendar, Banknote, Clock } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { format, parseISO } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -17,9 +17,6 @@ export default function ExpensesManager({ initialDate }: Props) {
   const [data, setData] = useState<FullDayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const EXPENSE_PASSWORD = '123';
 
   useEffect(() => {
     async function loadData() {
@@ -59,6 +56,18 @@ export default function ExpensesManager({ initialDate }: Props) {
     };
     
     await addExpenseAction(newExp);
+
+    if (type === 'fixed') {
+      const dayOfMonth = parseISO(date).getDate();
+      await saveRecurringExpenseAction({
+        id: uuidv4(),
+        title,
+        amount,
+        day_of_month: dayOfMonth,
+        active: true
+      });
+    }
+    
     setData(prev => prev ? {
       ...prev,
       expenses: [...prev.expenses, newExp]
@@ -78,35 +87,6 @@ export default function ExpensesManager({ initialDate }: Props) {
     } : null);
     setIsSaving(false);
   };
-
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-4 space-y-6">
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 w-full max-w-sm text-center space-y-6">
-          <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-blue-500">
-            <Lock size={32} />
-          </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Доступ ограничен</h2>
-            <p className="text-gray-400 text-sm font-medium">Введите пароль для управления расходами</p>
-          </div>
-          <div className="space-y-4">
-            <input 
-              type="password" 
-              placeholder="••••" 
-              className="w-full p-5 bg-gray-50 rounded-2xl text-center text-2xl font-black tracking-[0.5em] border-none focus:ring-2 focus:ring-blue-500 transition-all"
-              autoFocus
-              value={password}
-              onChange={e => {
-                setPassword(e.target.value);
-                if (e.target.value === EXPENSE_PASSWORD) setIsAuthenticated(true);
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 pb-20">
