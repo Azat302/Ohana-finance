@@ -35,9 +35,9 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const calculateFinancials = (revCash: number, revCard: number, expenses: Expense[] = data.expenses, operations: Operation[] = data.operations, discounts: Discount[] = data.discounts) => {
     const totalRev = revCash + revCard;
     const totalExp = expenses.reduce((sum, e) => sum + e.amount, 0);
-    const totalOps = operations.reduce((sum, o) => sum + (o.amount * (o.count || 1)), 0);
-    const totalDiscounts = discounts.reduce((sum, d) => sum + (d.amount * (d.count || 1)), 0);
-    const profit = totalRev - totalExp - totalOps - totalDiscounts;
+    // Only taxi is an operation now, but user said taxi should not be subtracted either.
+    // So totalOps and totalDiscounts will be 0 in terms of profit impact.
+    const profit = totalRev - totalExp;
     return { date, revenue_cash: revCash, revenue_card: revCard, total_revenue: totalRev, profit };
   };
 
@@ -142,7 +142,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           id: uuidv4(),
           date,
           type: 'taxi',
-          person: formData.get('person') as string,
+          person: 'Такси', // Default name
           amount: parseFloat(formData.get('amount') as string) || 0,
         };
         await addOperationAction(newOp);
@@ -285,7 +285,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 </>
               ) : (
                 <>
-                  {modal !== 'staff_hookah' && (
+                  {(modal !== 'staff_hookah' && modal !== 'taxi') && (
                     <div className="space-y-1">
                       <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Имя / Кто</label>
                       <input name="person" placeholder="..." className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required autoFocus />
@@ -480,7 +480,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
                   </div>
                   <div className="flex items-center gap-3">
                     {op.type === 'taxi' && (
-                      <div className="text-sm font-black text-red-500">-{op.amount.toLocaleString()} ₽</div>
+                      <div className="text-sm font-black text-blue-500">{op.amount.toLocaleString()} ₽</div>
                     )}
                     {op.type === 'staff_hookah' && (
                       <div className="text-sm font-black text-blue-500">{op.count} шт</div>
@@ -552,9 +552,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           <div className="text-[10px] uppercase font-black opacity-50 tracking-tighter">Всего расходов</div>
           <div className="text-lg font-bold text-red-400">
             -{(
-              data.expenses.reduce((sum, e) => sum + e.amount, 0) + 
-              data.operations.reduce((sum, o) => sum + (o.amount * (o.count || 1)), 0) +
-              data.discounts.reduce((sum, d) => sum + (d.amount * (d.count || 1)), 0)
+              data.expenses.reduce((sum, e) => sum + e.amount, 0)
             ).toLocaleString()} ₽
           </div>
         </div>
