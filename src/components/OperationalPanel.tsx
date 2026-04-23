@@ -12,7 +12,7 @@ import {
   addDiscountAction,
   deleteItemAction 
 } from '@/app/actions';
-import { Plus, Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck } from 'lucide-react';
+import { Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck, WalletCards } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import Link from 'next/link';
 
@@ -24,7 +24,10 @@ interface Props {
 export default function OperationalPanel({ initialData, date }: Props) {
   const isToday = date === format(new Date(), 'yyyy-MM-dd');
   const [data, setData] = useState<FullDayData>(initialData);
-  const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | null>(null);
+  const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | null>(null);
+  const [salaryPerson, setSalaryPerson] = useState<string | null>(null);
+  const [salaryType, setSalaryType] = useState<'salary' | 'bonus' | null>(null);
+  const salaryPeople = ['Влада', 'Дима', 'Равчик', 'Артем', 'Ноутнейм'];
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isLocked, setIsLocked] = useState(!isToday);
@@ -84,6 +87,64 @@ export default function OperationalPanel({ initialData, date }: Props) {
        };
      });
    };
+
+  const handleSalaryClose = () => {
+    setModal(null);
+    setSalaryPerson(null);
+    setSalaryType(null);
+  };
+
+  const handleSalarySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!salaryPerson || !salaryType) return;
+    
+    const formData = new FormData(e.currentTarget);
+    const amount = parseFloat(formData.get('amount') as string) || 0;
+    const paymentSource = formData.get('payment_source') as 'cash' | 'bank';
+    
+    const now = new Date();
+    const time = format(now, 'HH:mm');
+    const title = salaryType === 'salary' ? `ЗП ${salaryPerson}` : `Премия ${salaryPerson}`;
+    
+    const newExp: Expense = {
+      id: uuidv4(),
+      date,
+      time,
+      title,
+      amount,
+      type: 'variable',
+      payment_source: paymentSource,
+      payment_type: 'cash'
+    };
+    
+    setIsSaving(true);
+    try {
+      await addExpenseAction(newExp);
+      setData(prev => {
+        const nextExpenses = [...prev.expenses, newExp];
+        return {
+          ...prev,
+          expenses: nextExpenses,
+          financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, nextExpenses, prev.operations, prev.discounts)
+        };
+      });
+      handleSalaryClose();
+    } catch (error) {
+      alert('Ошибка при сохранении');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePersonSelect = (person: string) => {
+    setSalaryPerson(person);
+    setModal('salary_type');
+  };
+
+  const handleSalaryTypeSelect = (type: 'salary' | 'bonus') => {
+    setSalaryType(type);
+    setModal('salary_amount');
+  };
 
   const handleModalSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -233,9 +294,9 @@ export default function OperationalPanel({ initialData, date }: Props) {
           <form onSubmit={handleModalSubmit} className="relative bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-2xl font-black uppercase tracking-tighter">
-                {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : '🔒 Доступ'}
+                {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : '🔒 Доступ'}
               </h3>
-              <button type="button" onClick={() => setModal(null)} className="p-2 text-gray-400"><X /></button>
+              <button type="button" onClick={() => ['salary', 'salary_type', 'salary_amount'].includes(modal || '') ? handleSalaryClose() : setModal(null)} className="p-2 text-gray-400"><X /></button>
             </div>
             <div className="space-y-4">
               {modal === 'password' ? (
@@ -256,6 +317,86 @@ export default function OperationalPanel({ initialData, date }: Props) {
                     />
                   </div>
                 </div>
+              ) : modal === 'salary' ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-500 font-medium text-center">Выберите сотрудника</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {salaryPeople.map(person => (
+                      <button
+                        key={person}
+                        type="button"
+                        onClick={() => handlePersonSelect(person)}
+                        className="p-4 bg-gray-50 rounded-2xl text-sm font-bold hover:bg-purple-50 hover:text-purple-600 transition-colors active:scale-95"
+                      >
+                        {person}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : modal === 'salary_type' ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-500 font-medium text-center">
+                    {salaryPerson}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleSalaryTypeSelect('salary')}
+                      className="p-6 bg-green-50 rounded-2xl flex flex-col items-center gap-2 active:scale-95 transition-all"
+                    >
+                      <Wallet size={32} className="text-green-500" />
+                      <span className="text-sm font-black uppercase">Зарплата</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSalaryTypeSelect('bonus')}
+                      className="p-6 bg-purple-50 rounded-2xl flex flex-col items-center gap-2 active:scale-95 transition-all"
+                    >
+                      <Percent size={32} className="text-purple-500" />
+                      <span className="text-sm font-black uppercase">Премия</span>
+                    </button>
+                  </div>
+                </div>
+              ) : modal === 'salary_amount' ? (
+                <form onSubmit={handleSalarySubmit} className="space-y-4">
+                  <div className="text-center">
+                    <span className="text-lg font-black text-purple-600">
+                      {salaryType === 'salary' ? 'Зарплата' : 'Премия'}
+                    </span>
+                    <span className="text-gray-400 mx-2">•</span>
+                    <span className="text-lg font-bold">{salaryPerson}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                    <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required autoFocus />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      name="payment_source"
+                      value="cash"
+                      onClick={(e) => (e.currentTarget.form?.querySelector('[name=payment_source]') as HTMLInputElement)?.setAttribute('value', 'cash')}
+                      className="p-4 bg-gray-50 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    >
+                      <Banknote size={20} className="text-green-500" />
+                      <span className="text-xs font-bold">Наличка</span>
+                    </button>
+                    <button
+                      type="button"
+                      name="payment_source"
+                      value="bank"
+                      onClick={(e) => (e.currentTarget.form?.querySelector('[name=payment_source]') as HTMLInputElement)?.setAttribute('value', 'bank')}
+                      className="p-4 bg-gray-50 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                    >
+                      <CreditCard size={20} className="text-blue-500" />
+                      <span className="text-xs font-bold">Р/С</span>
+                    </button>
+                    <input type="hidden" name="payment_source" value="cash" />
+                  </div>
+                  <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
+                    {isSaving ? <Loader2 className="animate-spin" /> : 'Подтвердить'}
+                  </button>
+                </form>
               ) : modal === 'expense' ? (
                 <>
                   <div className="grid grid-cols-2 gap-3">
@@ -311,9 +452,11 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 </>
               )}
             </div>
-            <button type="submit" disabled={isSaving} className="w-full bg-gray-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
-              {isSaving ? <Loader2 className="animate-spin" /> : modal === 'password' ? 'Разблокировать' : 'Подтвердить'}
-            </button>
+            {!['salary', 'salary_type', 'salary_amount'].includes(modal || '') && (
+              <button type="submit" disabled={isSaving} className="w-full bg-gray-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
+                {isSaving ? <Loader2 className="animate-spin" /> : modal === 'password' ? 'Разблокировать' : 'Подтвердить'}
+              </button>
+            )}
           </form>
         </div>
       )}
@@ -419,6 +562,15 @@ export default function OperationalPanel({ initialData, date }: Props) {
         >
           <div className="bg-blue-100 p-2 rounded-xl pointer-events-none"><Car className="text-blue-500" size={24} /></div>
           <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Такси</span>
+        </button>
+        <button 
+          type="button"
+          onClick={() => !isLocked && setModal('salary')} 
+          disabled={isLocked}
+          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
+        >
+          <div className="bg-purple-100 p-2 rounded-xl pointer-events-none"><WalletCards className="text-purple-500" size={24} /></div>
+          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Зарплаты</span>
         </button>
         <button 
           type="button"
