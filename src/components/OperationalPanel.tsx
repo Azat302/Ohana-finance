@@ -27,6 +27,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | null>(null);
   const [salaryPerson, setSalaryPerson] = useState<string | null>(null);
   const [salaryType, setSalaryType] = useState<'salary' | 'bonus' | null>(null);
+  const [salaryPaymentSource, setSalaryPaymentSource] = useState<'cash' | 'bank'>('cash');
   const salaryPeople = ['Влада', 'Дима', 'Равчик', 'Артем', 'Ноутнейм'];
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -35,11 +36,9 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const EDIT_PASSWORD = '123';
 
   // Helper for real-time calculations
-  const calculateFinancials = (revCash: number, revCard: number, expenses: Expense[] = data.expenses, operations: Operation[] = data.operations, discounts: Discount[] = data.discounts) => {
+  const calculateFinancials = (revCash: number, revCard: number, expenses: Expense[] = data.expenses) => {
     const totalRev = revCash + revCard;
     const totalExp = expenses.reduce((sum, e) => sum + e.amount, 0);
-    // Only taxi is an operation now, but user said taxi should not be subtracted either.
-    // So totalOps and totalDiscounts will be 0 in terms of profit impact.
     const profit = totalRev - totalExp;
     return { date, revenue_cash: revCash, revenue_card: revCard, total_revenue: totalRev, profit };
   };
@@ -61,7 +60,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const handleSaveFin = async (updates: Partial<Financials> = {}) => {
     const revCash = updates.revenue_cash ?? data.financials?.revenue_cash ?? 0;
     const revCard = updates.revenue_card ?? data.financials?.revenue_card ?? 0;
-    const newFin = calculateFinancials(revCash, revCard, data.expenses, data.operations, data.discounts);
+    const newFin = calculateFinancials(revCash, revCard, data.expenses);
     
     setSaveStatus('saving');
     try {
@@ -83,7 +82,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
        const revCard = type === 'card' ? numVal : (prev.financials?.revenue_card || 0);
        return {
          ...prev,
-         financials: calculateFinancials(revCash, revCard, prev.expenses, prev.operations, prev.discounts)
+         financials: calculateFinancials(revCash, revCard, prev.expenses)
        };
      });
    };
@@ -92,6 +91,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
     setModal(null);
     setSalaryPerson(null);
     setSalaryType(null);
+    setSalaryPaymentSource('cash');
   };
 
   const handleSalarySubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -100,7 +100,6 @@ export default function OperationalPanel({ initialData, date }: Props) {
     
     const formData = new FormData(e.currentTarget);
     const amount = parseFloat(formData.get('amount') as string) || 0;
-    const paymentSource = formData.get('payment_source') as 'cash' | 'bank';
     
     const now = new Date();
     const time = format(now, 'HH:mm');
@@ -113,21 +112,22 @@ export default function OperationalPanel({ initialData, date }: Props) {
       title,
       amount,
       type: 'variable',
-      payment_source: paymentSource,
+      payment_source: salaryPaymentSource,
       payment_type: 'cash'
     };
     
     setIsSaving(true);
     try {
       await addExpenseAction(newExp);
-      setData(prev => {
-        const nextExpenses = [...prev.expenses, newExp];
-        return {
-          ...prev,
-          expenses: nextExpenses,
-          financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, nextExpenses, prev.operations, prev.discounts)
-        };
-      });
+      const nextExpenses = [...data.expenses, newExp];
+      const newFin = calculateFinancials(data.financials?.revenue_cash || 0, data.financials?.revenue_card || 0, nextExpenses);
+      await saveFinancialsAction(newFin);
+      
+      setData(prev => ({
+        ...prev,
+        expenses: nextExpenses,
+        financials: newFin
+      }));
       handleSalaryClose();
     } catch (error) {
       alert('Ошибка при сохранении');
@@ -177,7 +177,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           return {
             ...prev,
             operations: nextOps,
-            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, prev.expenses, nextOps, prev.discounts)
+            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, prev.expenses)
           };
         });
       } else if (modal === 'staff') {
@@ -195,7 +195,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           return {
             ...prev,
             discounts: nextDiscounts,
-            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, prev.expenses, prev.operations, nextDiscounts)
+            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, prev.expenses)
           };
         });
       } else if (modal === 'taxi') {
@@ -212,7 +212,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           return {
             ...prev,
             operations: nextOps,
-            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, prev.expenses, nextOps, prev.discounts)
+            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, prev.expenses)
           };
         });
       } else if (modal === 'expense') {
@@ -229,14 +229,15 @@ export default function OperationalPanel({ initialData, date }: Props) {
           payment_type: 'cash'
         };
         await addExpenseAction(newExp);
-        setData(prev => {
-          const nextExpenses = [...prev.expenses, newExp];
-          return {
-            ...prev,
-            expenses: nextExpenses,
-            financials: calculateFinancials(prev.financials?.revenue_cash || 0, prev.financials?.revenue_card || 0, nextExpenses, prev.operations, prev.discounts)
-          };
-        });
+        const nextExpenses = [...data.expenses, newExp];
+        const newFin = calculateFinancials(data.financials?.revenue_cash || 0, data.financials?.revenue_card || 0, nextExpenses);
+        await saveFinancialsAction(newFin);
+        
+        setData(prev => ({
+          ...prev,
+          expenses: nextExpenses,
+          financials: newFin
+        }));
       }
       setModal(null);
     } catch (error) {
@@ -249,25 +250,41 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const handleDelete = async (sheet: string, id: string) => {
     if (!confirm('Точно удалить?')) return;
     setIsSaving(true);
-    await deleteItemAction(sheet, id, date);
-    setData(prev => {
-      const next = { ...prev };
+    try {
+      await deleteItemAction(sheet, id, date);
+      
+      let nextExpenses = data.expenses;
+      let nextOps = data.operations;
+      let nextDiscounts = data.discounts;
+      
       if (sheet === 'expenses') {
-        const nextExpenses = prev.expenses.filter(e => e.id !== id);
-        next.expenses = nextExpenses;
-        next.financials = calculateFinancials(next.financials?.revenue_cash || 0, next.financials?.revenue_card || 0, nextExpenses, next.operations, next.discounts);
+        nextExpenses = data.expenses.filter(e => e.id !== id);
       } else if (sheet === 'operations') {
-        const nextOps = prev.operations.filter(o => o.id !== id);
-        next.operations = nextOps;
-        next.financials = calculateFinancials(next.financials?.revenue_cash || 0, next.financials?.revenue_card || 0, next.expenses, nextOps, next.discounts);
+        nextOps = data.operations.filter(o => o.id !== id);
       } else if (sheet === 'discounts') {
-        const nextDiscounts = prev.discounts.filter(d => d.id !== id);
-        next.discounts = nextDiscounts;
-        next.financials = calculateFinancials(next.financials?.revenue_cash || 0, next.financials?.revenue_card || 0, next.expenses, next.operations, nextDiscounts);
+        nextDiscounts = data.discounts.filter(d => d.id !== id);
       }
-      return next;
-    });
-    setIsSaving(false);
+      
+      const newFin = calculateFinancials(
+        data.financials?.revenue_cash || 0, 
+        data.financials?.revenue_card || 0, 
+        nextExpenses
+      );
+      
+      await saveFinancialsAction(newFin);
+      
+      setData(prev => ({
+        ...prev,
+        expenses: nextExpenses,
+        operations: nextOps,
+        discounts: nextDiscounts,
+        financials: newFin
+      }));
+    } catch (error) {
+      alert('Ошибка при удалении');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -291,14 +308,15 @@ export default function OperationalPanel({ initialData, date }: Props) {
       {modal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => !isSaving && setModal(null)} />
-          <form onSubmit={handleModalSubmit} className="relative bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
+          <div className="relative bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-2xl font-black uppercase tracking-tighter">
                 {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : '🔒 Доступ'}
               </h3>
               <button type="button" onClick={() => ['salary', 'salary_type', 'salary_amount'].includes(modal || '') ? handleSalaryClose() : setModal(null)} className="p-2 text-gray-400"><X /></button>
             </div>
-            <div className="space-y-4">
+            
+            <form onSubmit={['salary_amount'].includes(modal) ? handleSalarySubmit : handleModalSubmit} className="space-y-4">
               {modal === 'password' ? (
                 <div className="space-y-4">
                   <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-blue-500 mb-4">
@@ -358,7 +376,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
                   </div>
                 </div>
               ) : modal === 'salary_amount' ? (
-                <form onSubmit={handleSalarySubmit} className="space-y-4">
+                <div className="space-y-4">
                   <div className="text-center">
                     <span className="text-lg font-black text-purple-600">
                       {salaryType === 'salary' ? 'Зарплата' : 'Премия'}
@@ -373,30 +391,33 @@ export default function OperationalPanel({ initialData, date }: Props) {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      name="payment_source"
-                      value="cash"
-                      onClick={(e) => (e.currentTarget.form?.querySelector('[name=payment_source]') as HTMLInputElement)?.setAttribute('value', 'cash')}
-                      className="p-4 bg-gray-50 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                      onClick={() => setSalaryPaymentSource('cash')}
+                      className={`p-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border-2 ${
+                        salaryPaymentSource === 'cash' 
+                          ? 'bg-green-50 border-green-500 text-green-700' 
+                          : 'bg-gray-50 border-transparent text-gray-500'
+                      }`}
                     >
-                      <Banknote size={20} className="text-green-500" />
+                      <Banknote size={20} />
                       <span className="text-xs font-bold">Наличка</span>
                     </button>
                     <button
                       type="button"
-                      name="payment_source"
-                      value="bank"
-                      onClick={(e) => (e.currentTarget.form?.querySelector('[name=payment_source]') as HTMLInputElement)?.setAttribute('value', 'bank')}
-                      className="p-4 bg-gray-50 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all"
+                      onClick={() => setSalaryPaymentSource('bank')}
+                      className={`p-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border-2 ${
+                        salaryPaymentSource === 'bank' 
+                          ? 'bg-blue-50 border-blue-500 text-blue-700' 
+                          : 'bg-gray-50 border-transparent text-gray-500'
+                      }`}
                     >
-                      <CreditCard size={20} className="text-blue-500" />
+                      <CreditCard size={20} />
                       <span className="text-xs font-bold">Р/С</span>
                     </button>
-                    <input type="hidden" name="payment_source" value="cash" />
                   </div>
                   <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
                     {isSaving ? <Loader2 className="animate-spin" /> : 'Подтвердить'}
                   </button>
-                </form>
+                </div>
               ) : modal === 'expense' ? (
                 <>
                   <div className="grid grid-cols-2 gap-3">
@@ -451,13 +472,13 @@ export default function OperationalPanel({ initialData, date }: Props) {
                   )}
                 </>
               )}
-            </div>
             {!['salary', 'salary_type', 'salary_amount'].includes(modal || '') && (
               <button type="submit" disabled={isSaving} className="w-full bg-gray-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
                 {isSaving ? <Loader2 className="animate-spin" /> : modal === 'password' ? 'Разблокировать' : 'Подтвердить'}
               </button>
             )}
-          </form>
+            </form>
+          </div>
         </div>
       )}
 
