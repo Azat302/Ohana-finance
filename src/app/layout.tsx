@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navigation from "@/components/Navigation";
@@ -18,20 +18,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Ohana Finance",
   description: "Simple finance tracking for small business",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "Ohana Finance",
   },
   icons: {
-    apple: "/apple-touch-icon.png",
+    apple: "/icon-ohana.png",
+    icon: "/icon-ohana.png",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default async function RootLayout({

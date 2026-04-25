@@ -10,10 +10,12 @@ import {
   addExpenseAction, 
   addOperationAction, 
   addDiscountAction,
+  addSafeTransactionAction,
   deleteItemAction 
 } from '@/app/actions';
-import { Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck, WalletCards } from 'lucide-react';
+import { Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck, WalletCards, ShieldCheck } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { SafeTransaction } from '@/types';
 import Link from 'next/link';
 
 interface Props {
@@ -24,7 +26,7 @@ interface Props {
 export default function OperationalPanel({ initialData, date }: Props) {
   const isToday = date === format(new Date(), 'yyyy-MM-dd');
   const [data, setData] = useState<FullDayData>(initialData);
-  const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | null>(null);
+  const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | 'safe' | 'safe_manual' | null>(null);
   const [salaryPerson, setSalaryPerson] = useState<string | null>(null);
   const [salaryType, setSalaryType] = useState<'salary' | 'bonus' | null>(null);
   const [salaryPaymentSource, setSalaryPaymentSource] = useState<'cash' | 'bank'>('cash');
@@ -158,6 +160,33 @@ export default function OperationalPanel({ initialData, date }: Props) {
       }
       return;
     }
+    if (modal === 'safe_manual') {
+      if (password === EDIT_PASSWORD) {
+        const formData = new FormData(e.currentTarget);
+        const amount = parseFloat(formData.get('amount') as string) || 0;
+        const newShift: Shift = {
+          date,
+          staff: data.shift?.staff || [],
+          start_cash: amount,
+          end_cash: 0,
+          is_manual_start_cash: true
+        };
+        setIsSaving(true);
+        try {
+          await saveShiftAction(newShift);
+          setData(prev => ({ ...prev, shift: newShift }));
+          setModal(null);
+          setPassword('');
+        } catch (error) {
+          alert('Ошибка при сохранении');
+        } finally {
+          setIsSaving(false);
+        }
+      } else {
+        alert('Неверный пароль');
+      }
+      return;
+    }
     const formData = new FormData(e.currentTarget);
     setIsSaving(true);
 
@@ -238,6 +267,22 @@ export default function OperationalPanel({ initialData, date }: Props) {
           expenses: nextExpenses,
           financials: newFin
         }));
+      } else if (modal === 'safe') {
+        const now = new Date();
+        const time = format(now, 'HH:mm');
+        const amount = parseFloat(formData.get('amount') as string) || 0;
+        const newSafeTrans: SafeTransaction = {
+          id: uuidv4(),
+          date,
+          time,
+          amount,
+          note: formData.get('note') as string || 'Перевод в сейф'
+        };
+        await addSafeTransactionAction(newSafeTrans);
+        setData(prev => ({
+          ...prev,
+          safe_transactions: [...(prev.safe_transactions || []), newSafeTrans]
+        }));
       }
       setModal(null);
     } catch (error) {
@@ -263,6 +308,12 @@ export default function OperationalPanel({ initialData, date }: Props) {
         nextOps = data.operations.filter(o => o.id !== id);
       } else if (sheet === 'discounts') {
         nextDiscounts = data.discounts.filter(d => d.id !== id);
+      } else if (sheet === 'safe_transactions') {
+        setData(prev => ({
+          ...prev,
+          safe_transactions: prev.safe_transactions.filter(t => t.id !== id)
+        }));
+        return; // Early return as financials don't need update for safe
       }
       
       const newFin = calculateFinancials(
@@ -311,13 +362,40 @@ export default function OperationalPanel({ initialData, date }: Props) {
           <div className="relative bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-2xl font-black uppercase tracking-tighter">
-                {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : '🔒 Доступ'}
+                {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : modal === 'safe' ? '🛡️ Сейф' : '🔒 Доступ'}
               </h3>
               <button type="button" onClick={() => ['salary', 'salary_type', 'salary_amount'].includes(modal || '') ? handleSalaryClose() : setModal(null)} className="p-2 text-gray-400"><X /></button>
             </div>
             
             <form onSubmit={['salary_amount'].includes(modal) ? handleSalarySubmit : handleModalSubmit} className="space-y-4">
-              {modal === 'password' ? (
+              {modal === 'safe' ? (
+                <div className="space-y-4">
+                  <div className="bg-emerald-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-emerald-500 mb-4">
+                    <ShieldCheck size={32} />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                    <p className="text-[10px] text-gray-400 mb-1 ml-1 italic">Положительная (+), Отрицательная (-)</p>
+                    <input 
+                      name="amount" 
+                      type="number" 
+                      step="any"
+                      placeholder="0" 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center" 
+                      required 
+                      autoFocus 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Комментарий (необяз.)</label>
+                    <input 
+                      name="note" 
+                      placeholder="Например: Внесение из кассы" 
+                      className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-bold" 
+                    />
+                  </div>
+                </div>
+              ) : modal === 'password' ? (
                 <div className="space-y-4">
                   <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-blue-500 mb-4">
                     <Lock size={32} />
@@ -465,6 +543,26 @@ export default function OperationalPanel({ initialData, date }: Props) {
                       <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
                     </div>
                   )}
+                  {modal === 'safe_manual' && (
+                    <>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Пароль администратора</label>
+                        <input 
+                          type="password" 
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="••••" 
+                          className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" 
+                          required 
+                          autoFocus
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма в сейфе (₽)</label>
+                        <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
+                      </div>
+                    </>
+                  )}
                   {modal === 'staff' && (
                     <div className="space-y-1">
                       {/* Note removed per user request */}
@@ -504,14 +602,21 @@ export default function OperationalPanel({ initialData, date }: Props) {
           />
           <div className="relative">
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Wallet size={16} /></div>
-            <input 
-              type="number" 
-              placeholder="Сейф на начало дня" 
-              className="w-full p-4 pl-12 bg-gray-50 rounded-2xl text-sm border-none font-bold" 
-              defaultValue={data.shift?.start_cash} 
-              disabled={isLocked}
-              onBlur={e => handleSaveShift({ start_cash: parseFloat(e.target.value) || 0 })} 
-            />
+            <div 
+              className={`w-full p-4 pl-12 bg-gray-50 rounded-2xl text-sm border-none font-bold cursor-pointer ${data.shift?.is_manual_start_cash ? 'text-amber-600' : 'text-gray-900'}`}
+              onClick={() => !isLocked && setModal('safe_manual')}
+            >
+              {data.shift?.start_cash.toLocaleString() || 0} ₽
+              <span className="ml-2 text-[8px] font-black uppercase opacity-40">
+                {data.shift?.is_manual_start_cash ? '(Вручную)' : '(Авто)'}
+              </span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center px-4 py-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+            <div className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Текущий остаток в сейфе</div>
+            <div className="text-sm font-black text-emerald-700">
+              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()} ₽
+            </div>
           </div>
         </div>
       </section>
@@ -602,10 +707,51 @@ export default function OperationalPanel({ initialData, date }: Props) {
           <div className="bg-green-100 p-2 rounded-xl pointer-events-none"><UserCheck className="text-green-500" size={24} /></div>
           <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Стафф</span>
         </button>
+        <button 
+          type="button"
+          onClick={() => !isLocked && setModal('safe')} 
+          disabled={isLocked}
+          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
+        >
+          <div className="bg-emerald-100 p-2 rounded-xl pointer-events-none"><ShieldCheck className="text-emerald-500" size={24} /></div>
+          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Сейф</span>
+        </button>
       </div>
 
       {/* Unified Lists (Expenses, Operations & Staff) */}
       <div className="space-y-6">
+        {/* Safe Transactions List */}
+        {(data.safe_transactions?.length || 0) > 0 && (
+          <div className="space-y-2">
+            <div className="flex justify-between items-center px-3">
+              <div className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Транзакции сейфа</div>
+              <div className="text-[10px] font-black uppercase text-emerald-600 tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
+                Итого: {data.safe_transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()} ₽
+              </div>
+            </div>
+            <div className="space-y-2">
+              {data.safe_transactions.map(t => (
+                <div key={t.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
+                  <div className="flex-1">
+                    <div className="font-bold text-sm text-gray-900">{t.note}</div>
+                    <div className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-tighter">
+                      {t.time}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`text-sm font-black ${t.amount >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {t.amount >= 0 ? '+' : ''}{t.amount.toLocaleString()} ₽
+                    </div>
+                    {!isLocked && (
+                      <button onClick={() => handleDelete('safe_transactions', t.id)} className="bg-red-50 text-red-400 p-2.5 rounded-xl active:scale-90 transition-all"><Trash2 size={16}/></button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Expenses List */}
         {data.expenses.length > 0 && (
           <div className="space-y-2">

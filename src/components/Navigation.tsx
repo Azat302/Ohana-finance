@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Home, Calendar, Banknote } from 'lucide-react';
+import { Home, Calendar, LayoutGrid } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Navigation() {
@@ -12,7 +13,7 @@ export default function Navigation() {
   const navItems = [
     { name: 'Дашборд', href: '/', icon: Home },
     { name: 'Смена', href: `/day/${today}`, icon: Calendar },
-    { name: 'Расходы', href: '/expenses', icon: Banknote },
+    { name: 'Хаб', href: '/hub', icon: LayoutGrid },
   ];
 
   return (
@@ -39,24 +40,29 @@ export default function Navigation() {
       </nav>
 
       {/* Top Nav for Desktop */}
-      <nav className="hidden md:flex fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-16 items-center px-8 z-50 justify-between">
-        <div className="font-bold text-xl text-blue-600">Ohana Finance</div>
-        <div className="flex space-x-8">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (item.href.startsWith('/day/') && pathname.startsWith('/day/'));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={true}
-                className={`font-medium transition-colors ${
-                  isActive ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'
-                }`}
-              >
-                {item.name}
-              </Link>
-            );
-          })}
+      <nav className="hidden md:flex fixed top-0 left-0 right-0 bg-white border-b border-gray-200 h-16 z-50">
+        <div className="max-w-6xl mx-auto w-full flex items-center justify-between pr-4 md:pr-8">
+          <Link href="/" className="flex items-center gap-2 -ml-3">
+            <Image src="/logo.png" alt="Ohana Logo" width={40} height={40} className="w-10 h-10 object-contain" />
+            <div className="font-bold text-xl text-blue-600">Ohana Finance</div>
+          </Link>
+          <div className="flex space-x-8">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href || (item.href.startsWith('/day/') && pathname.startsWith('/day/'));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  prefetch={true}
+                  className={`font-medium transition-colors ${
+                    isActive ? 'text-blue-600' : 'text-gray-500 hover:text-blue-500'
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </>

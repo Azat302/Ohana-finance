@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { Shift, Financials, Expense, Operation, FullDayData, DashboardSummary, RecurringExpense, Discount } from '@/types';
+import { Shift, Financials, Expense, Operation, FullDayData, DashboardSummary, RecurringExpense, Discount, SafeTransaction, GlobalBalances, ActionLog } from '@/types';
 import { cache } from 'react';
 
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
@@ -33,7 +33,7 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
     const sheets = await getSheetsClient();
     const response = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: SPREADSHEET_ID,
-      ranges: ['shifts!A:D', 'financials!A:E', 'expenses!A:G', 'operations!A:G', 'discounts!A:F'],
+      ranges: ['shifts!A:D', 'financials!A:E', 'expenses!A:G', 'operations!A:G', 'discounts!A:F', 'safe_transactions!A:E'],
     });
 
     const valueRanges = response.data.valueRanges || [];
@@ -52,6 +52,7 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
       staff,
       start_cash: parseFloat(shiftRow[2]) || 0,
       end_cash: parseFloat(shiftRow[3]) || 0,
+      is_manual_start_cash: shiftRow[4] === 'TRUE' || shiftRow[4] === 'true',
     } : null;
 
     const finRow = (valueRanges[1].values || []).find(r => r[0] === date);
@@ -99,11 +100,43 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
         note: r[4],
       }));
 
-    return { date, shift, financials, expenses, operations, discounts };
+    const safe_transactions: SafeTransaction[] = (valueRanges[5]?.values || [])
+      .filter(r => r[1] === date)
+      .map(r => ({
+        id: r[0],
+        date: r[1],
+        time: r[2],
+        amount: parseFloat(r[3]) || 0,
+        note: r[4] || '',
+      }));
+
+    return { date, shift, financials, expenses, operations, discounts, safe_transactions };
   } catch (error: any) {
     console.error(`Error getFullDay for date ${date}:`, error.message);
     if (error.response) console.error('API Error Response:', error.response.data);
-    return { date, shift: null, financials: null, expenses: [], operations: [], discounts: [] };
+    return { date, shift: null, financials: null, expenses: [], operations: [], discounts: [], safe_transactions: [] };
+  }
+});
+
+export const getSafeTransactions = cache(async (date: string): Promise<SafeTransaction[]> => {
+  try {
+    const sheets = await getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'safe_transactions!A:E',
+    });
+    const rows = response.data.values || [];
+    return rows
+      .filter(r => r[1] === date)
+      .map(r => ({
+        id: r[0],
+        date: r[1],
+        time: r[2],
+        amount: parseFloat(r[3]) || 0,
+        note: r[4] || '',
+      }));
+  } catch (error) {
+    return [];
   }
 });
 
@@ -152,19 +185,71 @@ export const getRecurringExpenses = cache(async (): Promise<RecurringExpense[]> 
   }
 });
 
+export const getGlobalBalances = cache(async (): Promise<GlobalBalances> => {
+  try {
+    const sheets = await getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'config!A:C',
+    });
+    const rows = response.data.values || [];
+    const safeRow = rows.find(r => r[0] === 'safe_balance');
+    const bankRow = rows.find(r => r[0] === 'bank_balance');
+    
+    return {
+      safe: parseFloat(safeRow?.[1]) || 0,
+      bank: parseFloat(bankRow?.[1]) || 0,
+      last_updated: safeRow?.[2] || new Date().toISOString(),
+    };
+  } catch (error) {
+    return { safe: 0, bank: 0, last_updated: new Date().toISOString() };
+  }
+});
+
+export const getActionLogs = cache(async (date?: string): Promise<ActionLog[]> => {
+  try {
+    const sheets = await getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'action_logs!A:H',
+    });
+    const rows = response.data.values || [];
+    if (rows.length <= 1) return [];
+    
+    let logs = rows.slice(1).map(r => ({
+      id: r[0],
+      timestamp: r[1],
+      date: r[2],
+      action_type: r[3],
+      description: r[4],
+      details: r[5],
+      ip: r[6] || '',
+      user_agent: r[7] || '',
+    }));
+
+    if (date) {
+      logs = logs.filter(l => l.date === date);
+    }
+    
+    return logs.reverse(); // Newest first
+  } catch (error) {
+    return [];
+  }
+});
+
 // --- Writing ---
 
 export async function saveShift(shift: Shift) {
   const sheets = await getSheetsClient();
-  const range = 'shifts!A:D';
+  const range = 'shifts!A:E';
   const response = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range });
   const rows = response.data.values || [];
   const rowIndex = rows.findIndex(r => r[0] === shift.date);
-  const values = [[shift.date, JSON.stringify(shift.staff), shift.start_cash, shift.end_cash]];
+  const values = [[shift.date, JSON.stringify(shift.staff), shift.start_cash, shift.end_cash, shift.is_manual_start_cash || false]];
   if (rowIndex === -1) {
     await sheets.spreadsheets.values.append({ spreadsheetId: SPREADSHEET_ID, range, valueInputOption: 'USER_ENTERED', requestBody: { values } });
   } else {
-    await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `shifts!A${rowIndex + 1}:D${rowIndex + 1}`, valueInputOption: 'USER_ENTERED', requestBody: { values } });
+    await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `shifts!A${rowIndex + 1}:E${rowIndex + 1}`, valueInputOption: 'USER_ENTERED', requestBody: { values } });
   }
 }
 
@@ -240,6 +325,18 @@ export async function saveRecurringExpense(item: RecurringExpense) {
   }
 }
 
+export async function addSafeTransaction(t: SafeTransaction) {
+  const sheets = await getSheetsClient();
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'safe_transactions!A:E',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: {
+      values: [[t.id, t.date, t.time, t.amount, t.note || '']]
+    }
+  });
+}
+
 export async function deleteRowById(sheetName: string, id: string) {
   const sheets = await getSheetsClient();
   const response = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `${sheetName}!A:A` });
@@ -252,4 +349,42 @@ export async function deleteRowById(sheetName: string, id: string) {
       await sheets.spreadsheets.batchUpdate({ spreadsheetId: SPREADSHEET_ID, requestBody: { requests: [{ deleteDimension: { range: { sheetId, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 } } }] } });
     }
   }
+}
+
+export async function saveGlobalBalances(balances: Partial<GlobalBalances>) {
+  const sheets = await getSheetsClient();
+  const timestamp = new Date().toISOString();
+  
+  if (balances.safe !== undefined) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'config!A1:C1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['safe_balance', balances.safe, timestamp]] }
+    });
+  }
+  
+  if (balances.bank !== undefined) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'config!A2:C2',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['bank_balance', balances.bank, timestamp]] }
+    });
+  }
+}
+
+export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'>) {
+  const sheets = await getSheetsClient();
+  const id = Math.random().toString(36).substring(2, 9);
+  const timestamp = new Date().toLocaleString('ru-RU');
+  
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: 'action_logs!A:H',
+    valueInputOption: 'USER_ENTERED',
+    requestBody: {
+      values: [[id, timestamp, log.date, log.action_type, log.description, log.details || '', log.ip || '', log.user_agent || '']]
+    }
+  });
 }

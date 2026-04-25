@@ -3,6 +3,7 @@ export interface Shift {
   staff: string[]; 
   start_cash: number;
   end_cash: number;
+  is_manual_start_cash?: boolean;
 }
 
 export interface Financials {
@@ -51,6 +52,14 @@ export interface RecurringExpense {
   active: boolean;
 }
 
+export interface SafeTransaction {
+  id: string;
+  date: string;
+  time: string;
+  amount: number;
+  note?: string;
+}
+
 export interface FullDayData {
   date: string;
   shift: Shift | null;
@@ -58,6 +67,7 @@ export interface FullDayData {
   expenses: Expense[];
   operations: Operation[];
   discounts: Discount[];
+  safe_transactions: SafeTransaction[];
 }
 
 export interface DashboardSummary {
@@ -65,4 +75,21 @@ export interface DashboardSummary {
   total_revenue: number;
   total_expenses: number;
   profit: number;
+}
+
+export interface GlobalBalances {
+  safe: number;
+  bank: number;
+  last_updated: string;
+}
+
+export interface ActionLog {
+  id: string;
+  timestamp: string;
+  date: string; // the date the action refers to
+  action_type: string;
+  description: string;
+  details?: string;
+  ip?: string;
+  user_agent?: string;
 }
