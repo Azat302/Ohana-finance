@@ -55,37 +55,52 @@ export default function ExpensesManager({ initialDate }: Props) {
       payment_type: 'cash' 
     };
     
-    await addExpenseAction(newExp);
+    try {
+      const resultExp = await addExpenseAction(newExp);
+      if (!resultExp.success) throw new Error(resultExp.error);
 
-    if (type === 'fixed') {
-      const dayOfMonth = parseISO(date).getDate();
-      await saveRecurringExpenseAction({
-        id: uuidv4(),
-        title,
-        amount,
-        day_of_month: dayOfMonth,
-        active: true
-      });
+      if (type === 'fixed') {
+        const dayOfMonth = parseISO(date).getDate();
+        const resultRec = await saveRecurringExpenseAction({
+          id: uuidv4(),
+          title,
+          amount,
+          day_of_month: dayOfMonth,
+          active: true
+        });
+        if (!resultRec.success) throw new Error(resultRec.error);
+      }
+      
+      setData(prev => prev ? {
+        ...prev,
+        expenses: [...prev.expenses, newExp]
+      } : null);
+      
+      e.currentTarget.reset();
+    } catch (error: any) {
+      console.error('Add expense error:', error);
+      alert('Ошибка при сохранении: ' + (error.message || error));
+    } finally {
+      setIsSaving(false);
     }
-    
-    setData(prev => prev ? {
-      ...prev,
-      expenses: [...prev.expenses, newExp]
-    } : null);
-    
-    e.currentTarget.reset();
-    setIsSaving(false);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Точно удалить?')) return;
     setIsSaving(true);
-    await deleteItemAction('expenses', id, date);
-    setData(prev => prev ? {
-      ...prev,
-      expenses: prev.expenses.filter(e => e.id !== id)
-    } : null);
-    setIsSaving(false);
+    try {
+      const result = await deleteItemAction('expenses', id, date);
+      if (!result.success) throw new Error(result.error);
+      setData(prev => prev ? {
+        ...prev,
+        expenses: prev.expenses.filter(e => e.id !== id)
+      } : null);
+    } catch (error: any) {
+      console.error('Delete expense error:', error);
+      alert('Ошибка при удалении: ' + (error.message || error));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (

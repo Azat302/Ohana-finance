@@ -94,9 +94,10 @@ export async function saveShiftAction(shift: Shift) {
 
     revalidatePath(`/day/${shift.date}`);
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('saveShiftAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -138,9 +139,10 @@ export async function saveFinancialsAction(fin: Financials) {
 
     revalidatePath(`/day/${fin.date}`);
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('saveFinancialsAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -177,9 +179,10 @@ export async function addExpenseAction(expense: Expense) {
 
     revalidatePath(`/day/${expense.date}`);
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('addExpenseAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -199,9 +202,10 @@ export async function addOperationAction(op: Operation) {
 
     revalidatePath(`/day/${op.date}`);
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('addOperationAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -221,9 +225,10 @@ export async function saveRecurringExpenseAction(item: RecurringExpense) {
 
     revalidatePath('/recurring');
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('saveRecurringExpenseAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -243,9 +248,10 @@ export async function addDiscountAction(discount: Discount) {
 
     revalidatePath(`/day/${discount.date}`);
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('addDiscountAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -272,9 +278,10 @@ export async function addSafeTransactionAction(t: SafeTransaction) {
     revalidatePath(`/day/${t.date}`);
     revalidatePath('/hub');
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('addSafeTransactionAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -333,9 +340,10 @@ export async function deleteItemAction(sheetName: string, id: string, date: stri
     if (date) revalidatePath(`/day/${date}`);
     revalidatePath('/recurring');
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('deleteItemAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -364,9 +372,10 @@ export async function saveGlobalBalancesAction(balances: Partial<GlobalBalances>
     
     revalidatePath('/hub');
     revalidatePath('/');
+    return { success: true };
   } catch (error) {
     console.error('saveGlobalBalancesAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -383,8 +392,9 @@ export async function addActionLogAction(log: Omit<ActionLog, 'id' | 'timestamp'
   try {
     await db.addActionLog(log);
     revalidatePath('/history');
+    return { success: true };
   } catch (error) {
     console.error('addActionLogAction error:', error);
-    throw error;
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

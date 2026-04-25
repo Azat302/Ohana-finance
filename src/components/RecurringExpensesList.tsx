@@ -16,25 +16,43 @@ export default function RecurringExpensesList({ initialExpenses }: Props) {
   const [editForm, setEditForm] = useState({ title: '', amount: '', day: '1' });
 
   const handleSave = async (item: RecurringExpense) => {
-    await saveRecurringExpenseAction(item);
-    setExpenses(prev => {
-      const exists = prev.find(e => e.id === item.id);
-      if (exists) return prev.map(e => e.id === item.id ? item : e);
-      return [...prev, item];
-    });
-    setEditingId(null);
+    try {
+      const result = await saveRecurringExpenseAction(item);
+      if (!result.success) throw new Error(result.error);
+      setExpenses(prev => {
+        const exists = prev.find(e => e.id === item.id);
+        if (exists) return prev.map(e => e.id === item.id ? item : e);
+        return [...prev, item];
+      });
+      setEditingId(null);
+    } catch (error: any) {
+      console.error('Save recurring expense error:', error);
+      alert('Ошибка при сохранении: ' + (error.message || error));
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Точно удалить?')) return;
-    await deleteItemAction('recurring_expenses', id, '');
-    setExpenses(prev => prev.filter(e => e.id !== id));
+    try {
+      const result = await deleteItemAction('recurring_expenses', id, '');
+      if (!result.success) throw new Error(result.error);
+      setExpenses(prev => prev.filter(e => e.id !== id));
+    } catch (error: any) {
+      console.error('Delete recurring expense error:', error);
+      alert('Ошибка при удалении: ' + (error.message || error));
+    }
   };
 
   const toggleActive = async (item: RecurringExpense) => {
     const updated = { ...item, active: !item.active };
-    await saveRecurringExpenseAction(updated);
-    setExpenses(prev => prev.map(e => e.id === item.id ? updated : e));
+    try {
+      const result = await saveRecurringExpenseAction(updated);
+      if (!result.success) throw new Error(result.error);
+      setExpenses(prev => prev.map(e => e.id === item.id ? updated : e));
+    } catch (error: any) {
+      console.error('Toggle recurring expense error:', error);
+      alert('Ошибка при изменении статуса: ' + (error.message || error));
+    }
   };
 
   return (

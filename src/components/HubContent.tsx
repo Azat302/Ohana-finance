@@ -82,11 +82,13 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
     setIsSaving(true);
     try {
       const newBalances = { ...balances, [editingBalance]: value };
-      await saveGlobalBalancesAction({ [editingBalance]: value });
+      const result = await saveGlobalBalancesAction({ [editingBalance]: value });
+      if (!result.success) throw new Error(result.error);
       setBalances(newBalances);
       setEditingBalance(null);
-    } catch (error) {
-      alert('Ошибка при сохранении');
+    } catch (error: any) {
+      console.error('Save balance error:', error);
+      alert('Ошибка при сохранении: ' + (error.message || error));
     } finally {
       setIsSaving(false);
     }

@@ -53,10 +53,16 @@ export default function OperationalPanel({ initialData, date }: Props) {
       end_cash: 0
     };
     setSaveStatus('saving');
-    await saveShiftAction(newShift);
-    setData(prev => ({ ...prev, shift: newShift }));
-    setSaveStatus('saved');
-    setTimeout(() => setSaveStatus('idle'), 2000);
+    const result = await saveShiftAction(newShift);
+    if (result.success) {
+      setData(prev => ({ ...prev, shift: newShift }));
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } else {
+      console.error('Save shift error:', result.error);
+      alert('Ошибка при сохранении смены: ' + result.error);
+      setSaveStatus('idle');
+    }
   };
 
   const handleSaveFin = async (updates: Partial<Financials> = {}) => {
@@ -66,12 +72,17 @@ export default function OperationalPanel({ initialData, date }: Props) {
     
     setSaveStatus('saving');
     try {
-      await saveFinancialsAction(newFin);
-      setData(prev => ({ ...prev, financials: newFin }));
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
-    } catch (e) {
-      console.error('Save error:', e);
+      const result = await saveFinancialsAction(newFin);
+      if (result.success) {
+        setData(prev => ({ ...prev, financials: newFin }));
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (e: any) {
+      console.error('Save financials error:', e);
+      alert('Ошибка при сохранении финансов: ' + (e.message || e));
       setSaveStatus('idle');
     }
   };
@@ -120,10 +131,14 @@ export default function OperationalPanel({ initialData, date }: Props) {
     
     setIsSaving(true);
     try {
-      await addExpenseAction(newExp);
+      const result = await addExpenseAction(newExp);
+      if (!result.success) throw new Error(result.error);
+      
       const nextExpenses = [...data.expenses, newExp];
       const newFin = calculateFinancials(data.financials?.revenue_cash || 0, data.financials?.revenue_card || 0, nextExpenses);
-      await saveFinancialsAction(newFin);
+      
+      const resultFin = await saveFinancialsAction(newFin);
+      if (!resultFin.success) throw new Error(resultFin.error);
       
       setData(prev => ({
         ...prev,
@@ -131,8 +146,9 @@ export default function OperationalPanel({ initialData, date }: Props) {
         financials: newFin
       }));
       handleSalaryClose();
-    } catch (error) {
-      alert('Ошибка при сохранении');
+    } catch (error: any) {
+      console.error('Salary submit error:', error);
+      alert('Ошибка при сохранении: ' + (error.message || error));
     } finally {
       setIsSaving(false);
     }
@@ -173,12 +189,14 @@ export default function OperationalPanel({ initialData, date }: Props) {
         };
         setIsSaving(true);
         try {
-          await saveShiftAction(newShift);
+          const result = await saveShiftAction(newShift);
+          if (!result.success) throw new Error(result.error);
           setData(prev => ({ ...prev, shift: newShift }));
           setModal(null);
           setPassword('');
-        } catch (error) {
-          alert('Ошибка при сохранении');
+        } catch (error: any) {
+          console.error('Save manual shift error:', error);
+          alert('Ошибка при сохранении: ' + (error.message || error));
         } finally {
           setIsSaving(false);
         }
@@ -200,7 +218,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
           amount: 0, // No longer affects profit
           count: parseInt(formData.get('count') as string) || 1
         };
-        await addOperationAction(newOp);
+        const result = await addOperationAction(newOp);
+        if (!result.success) throw new Error(result.error);
         setData(prev => {
           const nextOps = [...prev.operations, newOp];
           return {
@@ -218,7 +237,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
           count: parseInt(formData.get('count') as string) || 1,
           note: '' // Note removed
         };
-        await addDiscountAction(newDisc);
+        const result = await addDiscountAction(newDisc);
+        if (!result.success) throw new Error(result.error);
         setData(prev => {
           const nextDiscounts = [...prev.discounts, newDisc];
           return {
@@ -235,7 +255,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
           person: 'Такси', // Default name
           amount: parseFloat(formData.get('amount') as string) || 0,
         };
-        await addOperationAction(newOp);
+        const result = await addOperationAction(newOp);
+        if (!result.success) throw new Error(result.error);
         setData(prev => {
           const nextOps = [...prev.operations, newOp];
           return {
@@ -257,10 +278,13 @@ export default function OperationalPanel({ initialData, date }: Props) {
           payment_source: (formData.get('payment_source') as any) || 'cash',
           payment_type: 'cash'
         };
-        await addExpenseAction(newExp);
+        const resultExp = await addExpenseAction(newExp);
+        if (!resultExp.success) throw new Error(resultExp.error);
+
         const nextExpenses = [...data.expenses, newExp];
         const newFin = calculateFinancials(data.financials?.revenue_cash || 0, data.financials?.revenue_card || 0, nextExpenses);
-        await saveFinancialsAction(newFin);
+        const resultFin = await saveFinancialsAction(newFin);
+        if (!resultFin.success) throw new Error(resultFin.error);
         
         setData(prev => ({
           ...prev,
@@ -278,15 +302,17 @@ export default function OperationalPanel({ initialData, date }: Props) {
           amount,
           note: formData.get('note') as string || 'Перевод в сейф'
         };
-        await addSafeTransactionAction(newSafeTrans);
+        const result = await addSafeTransactionAction(newSafeTrans);
+        if (!result.success) throw new Error(result.error);
         setData(prev => ({
           ...prev,
           safe_transactions: [...(prev.safe_transactions || []), newSafeTrans]
         }));
       }
       setModal(null);
-    } catch (error) {
-      alert('Ошибка при сохранении');
+    } catch (error: any) {
+      console.error('Modal submit error:', error);
+      alert('Ошибка при сохранении: ' + (error.message || error));
     } finally {
       setIsSaving(false);
     }
@@ -296,7 +322,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
     if (!confirm('Точно удалить?')) return;
     setIsSaving(true);
     try {
-      await deleteItemAction(sheet, id, date);
+      const result = await deleteItemAction(sheet, id, date);
+      if (!result.success) throw new Error(result.error);
       
       let nextExpenses = data.expenses;
       let nextOps = data.operations;
@@ -313,6 +340,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           ...prev,
           safe_transactions: prev.safe_transactions.filter(t => t.id !== id)
         }));
+        setIsSaving(false);
         return; // Early return as financials don't need update for safe
       }
       
@@ -322,7 +350,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
         nextExpenses
       );
       
-      await saveFinancialsAction(newFin);
+      const resultFin = await saveFinancialsAction(newFin);
+      if (!resultFin.success) throw new Error(resultFin.error);
       
       setData(prev => ({
         ...prev,
@@ -331,8 +360,9 @@ export default function OperationalPanel({ initialData, date }: Props) {
         discounts: nextDiscounts,
         financials: newFin
       }));
-    } catch (error) {
-      alert('Ошибка при удалении');
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      alert('Ошибка при удалении: ' + (error.message || error));
     } finally {
       setIsSaving(false);
     }
