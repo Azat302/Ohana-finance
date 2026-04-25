@@ -214,6 +214,9 @@ export const getGlobalBalances = cache(async (): Promise<GlobalBalances> => {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: 'config!A:C',
+    }).catch(err => {
+      console.warn('Sheet "config" not found or inaccessible:', err.message);
+      return { data: { values: [] } };
     });
     const rows = response.data.values || [];
     const safeRow = rows.find(r => r[0] === 'safe_balance');
@@ -236,6 +239,9 @@ export const getActionLogs = cache(async (date?: string): Promise<ActionLog[]> =
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: 'action_logs!A:H',
+    }).catch(err => {
+      console.warn('Sheet "action_logs" not found or inaccessible:', err.message);
+      return { data: { values: [] } };
     });
     const rows = response.data.values || [];
     if (rows.length <= 1) return [];

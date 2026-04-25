@@ -336,13 +336,19 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
             setEditingBalance('safe');
             setTempValue(balances.safe.toString());
           }}
-          className="bg-white p-6 rounded-[2rem] border border-gray-100 flex flex-col items-start gap-2 active:scale-95 transition-all"
+          className="bg-white p-6 rounded-[2rem] border border-gray-100 flex flex-col items-start gap-2 active:scale-95 transition-all relative overflow-hidden group"
         >
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Wallet size={80} />
+          </div>
           <div className="bg-emerald-50 text-emerald-500 p-2 rounded-xl">
             <Wallet size={16} />
           </div>
-          <div className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Сейф</div>
+          <div className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Сейф (наличные)</div>
           <div className="text-xl font-black text-gray-900">{balances.safe.toLocaleString()} ₽</div>
+          <div className="text-[8px] font-bold text-emerald-600 uppercase tracking-tighter mt-1">
+            Нажмите, чтобы изменить вручную
+          </div>
         </button>
       </section>
 
