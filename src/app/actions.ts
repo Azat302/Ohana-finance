@@ -1,6 +1,6 @@
 'use server';
 
-import * as db from '@/lib/google-sheets';
+import { db } from '@/lib/db-provider';
 import { Shift, Financials, Expense, Operation, RecurringExpense, Discount, SafeTransaction, GlobalBalances, ActionLog } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { format, subDays, parseISO } from 'date-fns';
@@ -184,162 +184,207 @@ export async function addExpenseAction(expense: Expense) {
 }
 
 export async function addOperationAction(op: Operation) {
-  await db.addOperation(op);
-  
-  const { ip, userAgent } = await getMetadata();
-  await db.addActionLog({
-    date: op.date,
-    action_type: 'OPERATION_ADD',
-    description: `Добавлена операция: ${op.type}`,
-    details: `Сотрудник: ${op.person}, Сумма: ${op.amount}`,
-    ip,
-    user_agent: userAgent
-  });
+  try {
+    await db.addOperation(op);
+    
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date: op.date,
+      action_type: 'OPERATION_ADD',
+      description: `Добавлена операция: ${op.type}`,
+      details: `Сотрудник: ${op.person}, Сумма: ${op.amount}`,
+      ip,
+      user_agent: userAgent
+    });
 
-  revalidatePath(`/day/${op.date}`);
-  revalidatePath('/');
+    revalidatePath(`/day/${op.date}`);
+    revalidatePath('/');
+  } catch (error) {
+    console.error('addOperationAction error:', error);
+    throw error;
+  }
 }
 
 export async function saveRecurringExpenseAction(item: RecurringExpense) {
-  await db.saveRecurringExpense(item);
-  
-  const { ip, userAgent } = await getMetadata();
-  await db.addActionLog({
-    date: format(new Date(), 'yyyy-MM-dd'),
-    action_type: 'RECURRING_EXPENSE_SAVE',
-    description: `Обновлен регулярный расход: ${item.title}`,
-    details: `Сумма: ${item.amount}, День: ${item.day_of_month}`,
-    ip,
-    user_agent: userAgent
-  });
+  try {
+    await db.saveRecurringExpense(item);
+    
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date: format(new Date(), 'yyyy-MM-dd'),
+      action_type: 'RECURRING_EXPENSE_SAVE',
+      description: `Обновлен регулярный расход: ${item.title}`,
+      details: `Сумма: ${item.amount}, День: ${item.day_of_month}`,
+      ip,
+      user_agent: userAgent
+    });
 
-  revalidatePath('/recurring');
-  revalidatePath('/');
+    revalidatePath('/recurring');
+    revalidatePath('/');
+  } catch (error) {
+    console.error('saveRecurringExpenseAction error:', error);
+    throw error;
+  }
 }
 
 export async function addDiscountAction(discount: Discount) {
-  await db.addDiscount(discount);
-  
-  const { ip, userAgent } = await getMetadata();
-  await db.addActionLog({
-    date: discount.date,
-    action_type: 'DISCOUNT_ADD',
-    description: `Добавлена скидка/списание: ${discount.person}`,
-    details: `Сумма: ${discount.amount}`,
-    ip,
-    user_agent: userAgent
-  });
+  try {
+    await db.addDiscount(discount);
+    
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date: discount.date,
+      action_type: 'DISCOUNT_ADD',
+      description: `Добавлена скидка/списание: ${discount.person}`,
+      details: `Сумма: ${discount.amount}`,
+      ip,
+      user_agent: userAgent
+    });
 
-  revalidatePath(`/day/${discount.date}`);
-  revalidatePath('/');
+    revalidatePath(`/day/${discount.date}`);
+    revalidatePath('/');
+  } catch (error) {
+    console.error('addDiscountAction error:', error);
+    throw error;
+  }
 }
 
 export async function addSafeTransactionAction(t: SafeTransaction) {
-  await db.addSafeTransaction(t);
-  
-  const { ip, userAgent } = await getMetadata();
-  
-  // Обновляем баланс сейфа
-  const balances = await db.getGlobalBalances();
-  const newSafeBalance = (balances.safe || 0) + t.amount;
-  await db.saveGlobalBalances({ safe: newSafeBalance });
+  try {
+    await db.addSafeTransaction(t);
+    
+    const { ip, userAgent } = await getMetadata();
+    
+    // Обновляем баланс сейфа
+    const balances = await db.getGlobalBalances();
+    const newSafeBalance = (balances.safe || 0) + t.amount;
+    await db.saveGlobalBalances({ safe: newSafeBalance });
 
-  await db.addActionLog({
-    date: t.date,
-    action_type: 'SAFE_TRANSACTION',
-    description: `Операция в сейфе: ${t.amount > 0 ? 'Внесение' : 'Изъятие'}`,
-    details: `Сумма: ${t.amount} ₽. Сейф: ${newSafeBalance} ₽`,
-    ip,
-    user_agent: userAgent
-  });
+    await db.addActionLog({
+      date: t.date,
+      action_type: 'SAFE_TRANSACTION',
+      description: `Операция в сейфе: ${t.amount > 0 ? 'Внесение' : 'Изъятие'}`,
+      details: `Сумма: ${t.amount} ₽. Сейф: ${newSafeBalance} ₽`,
+      ip,
+      user_agent: userAgent
+    });
 
-  revalidatePath(`/day/${t.date}`);
-  revalidatePath('/hub');
-  revalidatePath('/');
+    revalidatePath(`/day/${t.date}`);
+    revalidatePath('/hub');
+    revalidatePath('/');
+  } catch (error) {
+    console.error('addSafeTransactionAction error:', error);
+    throw error;
+  }
 }
 
 export async function deleteItemAction(sheetName: string, id: string, date: string) {
-  const { ip, userAgent } = await getMetadata();
-  
-  // Если удаляем расход или транзакцию сейфа, нужно вернуть деньги
-  if (sheetName === 'expenses') {
-    const dayData = await db.getFullDay(date);
-    const expense = dayData.expenses.find(e => e.id === id);
-    if (expense && expense.payment_source === 'cash') {
-      const balances = await db.getGlobalBalances();
-      const newSafeBalance = (balances.safe || 0) + expense.amount;
-      await db.saveGlobalBalances({ safe: newSafeBalance });
-      
-      await db.addActionLog({
-        date,
-        action_type: 'SAFE_AUTO_UPDATE',
-        description: `Возврат в сейф (удаление расхода)`,
-        details: `Сумма: +${expense.amount} ₽. Расход: ${expense.title}. Сейф: ${newSafeBalance} ₽`,
-        ip,
-        user_agent: userAgent
-      });
+  try {
+    const { ip, userAgent } = await getMetadata();
+    
+    // Если удаляем расход или транзакцию сейфа, нужно вернуть деньги
+    if (sheetName === 'expenses') {
+      const dayData = await db.getFullDay(date);
+      const expense = dayData.expenses.find(e => e.id === id);
+      if (expense && expense.payment_source === 'cash') {
+        const balances = await db.getGlobalBalances();
+        const newSafeBalance = (balances.safe || 0) + expense.amount;
+        await db.saveGlobalBalances({ safe: newSafeBalance });
+        
+        await db.addActionLog({
+          date,
+          action_type: 'SAFE_AUTO_UPDATE',
+          description: `Возврат в сейф (удаление расхода)`,
+          details: `Сумма: +${expense.amount} ₽. Расход: ${expense.title}. Сейф: ${newSafeBalance} ₽`,
+          ip,
+          user_agent: userAgent
+        });
+      }
+    } else if (sheetName === 'safe_transactions') {
+      const transactions = await db.getSafeTransactions(date);
+      const t = transactions.find(item => item.id === id);
+      if (t) {
+        const balances = await db.getGlobalBalances();
+        const newSafeBalance = (balances.safe || 0) - t.amount;
+        await db.saveGlobalBalances({ safe: newSafeBalance });
+        
+        await db.addActionLog({
+          date,
+          action_type: 'SAFE_AUTO_UPDATE',
+          description: `Корректировка сейфа (удаление операции)`,
+          details: `Сумма: ${-t.amount > 0 ? '+' : ''}${-t.amount} ₽. Сейф: ${newSafeBalance} ₽`,
+          ip,
+          user_agent: userAgent
+        });
+      }
     }
-  } else if (sheetName === 'safe_transactions') {
-    const transactions = await db.getSafeTransactions(date);
-    const t = transactions.find(item => item.id === id);
-    if (t) {
-      const balances = await db.getGlobalBalances();
-      const newSafeBalance = (balances.safe || 0) - t.amount;
-      await db.saveGlobalBalances({ safe: newSafeBalance });
-      
-      await db.addActionLog({
-        date,
-        action_type: 'SAFE_AUTO_UPDATE',
-        description: `Корректировка сейфа (удаление операции)`,
-        details: `Сумма: ${-t.amount > 0 ? '+' : ''}${-t.amount} ₽. Сейф: ${newSafeBalance} ₽`,
-        ip,
-        user_agent: userAgent
-      });
-    }
+
+    await db.deleteRowById(sheetName, id, date);
+    
+    await db.addActionLog({
+      date: date || format(new Date(), 'yyyy-MM-dd'),
+      action_type: 'DELETE',
+      description: `Удалена запись из ${sheetName}`,
+      details: `ID: ${id}`,
+      ip,
+      user_agent: userAgent
+    });
+
+    if (date) revalidatePath(`/day/${date}`);
+    revalidatePath('/recurring');
+    revalidatePath('/');
+  } catch (error) {
+    console.error('deleteItemAction error:', error);
+    throw error;
   }
-
-  await db.deleteRowById(sheetName, id);
-  
-  await db.addActionLog({
-    date: date || format(new Date(), 'yyyy-MM-dd'),
-    action_type: 'DELETE',
-    description: `Удалена запись из ${sheetName}`,
-    details: `ID: ${id}`,
-    ip,
-    user_agent: userAgent
-  });
-
-  if (date) revalidatePath(`/day/${date}`);
-  revalidatePath('/recurring');
-  revalidatePath('/');
 }
 
 export async function getGlobalBalancesAction() {
-  return await db.getGlobalBalances();
+  try {
+    return await db.getGlobalBalances();
+  } catch (error) {
+    console.error('getGlobalBalancesAction error:', error);
+    throw error;
+  }
 }
 
 export async function saveGlobalBalancesAction(balances: Partial<GlobalBalances>) {
-  await db.saveGlobalBalances(balances);
-  
-  const { ip, userAgent } = await getMetadata();
-  await db.addActionLog({
-    date: format(new Date(), 'yyyy-MM-dd'),
-    action_type: 'BALANCE_UPDATE',
-    description: 'Обновлены глобальные балансы',
-    details: JSON.stringify(balances),
-    ip,
-    user_agent: userAgent
-  });
-  
-  revalidatePath('/hub');
-  revalidatePath('/');
+  try {
+    await db.saveGlobalBalances(balances);
+    
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date: format(new Date(), 'yyyy-MM-dd'),
+      action_type: 'BALANCE_UPDATE',
+      description: 'Обновлены глобальные балансы',
+      details: JSON.stringify(balances),
+      ip,
+      user_agent: userAgent
+    });
+    
+    revalidatePath('/hub');
+    revalidatePath('/');
+  } catch (error) {
+    console.error('saveGlobalBalancesAction error:', error);
+    throw error;
+  }
 }
 
 export async function getActionLogsAction(date?: string) {
-  return await db.getActionLogs(date);
+  try {
+    return await db.getActionLogs(date);
+  } catch (error) {
+    console.error('getActionLogsAction error:', error);
+    throw error;
+  }
 }
 
 export async function addActionLogAction(log: Omit<ActionLog, 'id' | 'timestamp'>) {
-  await db.addActionLog(log);
-  revalidatePath('/history');
+  try {
+    await db.addActionLog(log);
+    revalidatePath('/history');
+  } catch (error) {
+    console.error('addActionLogAction error:', error);
+    throw error;
+  }
 }
