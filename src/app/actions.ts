@@ -7,145 +7,180 @@ import { format, subDays, parseISO } from 'date-fns';
 import { headers } from 'next/headers';
 
 async function getMetadata() {
-  const headersList = await headers();
-  const ip = headersList.get('x-forwarded-for') || '127.0.0.1';
-  const userAgent = headersList.get('user-agent') || 'unknown';
-  return { ip, userAgent };
+  try {
+    const headersList = await headers();
+    const ip = headersList.get('x-forwarded-for') || '127.0.0.1';
+    const userAgent = headersList.get('user-agent') || 'unknown';
+    return { ip, userAgent };
+  } catch (error) {
+    console.error('getMetadata error:', error);
+    return { ip: '127.0.0.1', userAgent: 'unknown' };
+  }
 }
 
 export async function getFullDayAction(date: string) {
-  const data = await db.getFullDay(date);
-  
-  // If shift exists and it's NOT manual, or if shift doesn't exist at all,
-  // we try to calculate start_cash from previous day
-  if (!data.shift || !data.shift.is_manual_start_cash) {
-    const prevDate = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
-    const prevDayData = await db.getFullDay(prevDate);
+  try {
+    const data = await db.getFullDay(date);
     
-    if (prevDayData.shift) {
-      const prevStart = prevDayData.shift.start_cash || 0;
-      const prevSafeTrans = prevDayData.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
-      const prevCashRevenue = prevDayData.financials?.revenue_cash || 0;
-      const prevCashExpenses = prevDayData.expenses
-        ?.filter(e => e.payment_source === 'cash')
-        ?.reduce((sum, e) => sum + e.amount, 0) || 0;
+    // If shift exists and it's NOT manual, or if shift doesn't exist at all,
+    // we try to calculate start_cash from previous day
+    if (!data.shift || !data.shift.is_manual_start_cash) {
+      const prevDate = format(subDays(parseISO(date), 1), 'yyyy-MM-dd');
+      const prevDayData = await db.getFullDay(prevDate);
       
-      // Calculate what should be in safe at the end of previous day
-      const calculatedStart = prevStart + prevSafeTrans + prevCashRevenue - prevCashExpenses;
-      
-      if (data.shift) {
-        data.shift.start_cash = calculatedStart;
-      } else {
-        data.shift = {
-          date,
-          staff: [],
-          start_cash: calculatedStart,
-          end_cash: 0,
-          is_manual_start_cash: false
-        };
+      if (prevDayData.shift) {
+        const prevStart = prevDayData.shift.start_cash || 0;
+        const prevSafeTrans = prevDayData.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
+        const prevCashRevenue = prevDayData.financials?.revenue_cash || 0;
+        const prevCashExpenses = prevDayData.expenses
+          ?.filter(e => e.payment_source === 'cash')
+          ?.reduce((sum, e) => sum + e.amount, 0) || 0;
+        
+        // Calculate what should be in safe at the end of previous day
+        const calculatedStart = prevStart + prevSafeTrans + prevCashRevenue - prevCashExpenses;
+        
+        if (data.shift) {
+          data.shift.start_cash = calculatedStart;
+        } else {
+          data.shift = {
+            date,
+            staff: [],
+            start_cash: calculatedStart,
+            end_cash: 0,
+            is_manual_start_cash: false
+          };
+        }
       }
     }
+    
+    return data;
+  } catch (error) {
+    console.error(`getFullDayAction error for ${date}:`, error);
+    throw error;
   }
-  
-  return data;
 }
 
 export async function getDashboardSummaryAction() {
-  return await db.getDashboardSummary();
+  try {
+    return await db.getDashboardSummary();
+  } catch (error) {
+    console.error('getDashboardSummaryAction error:', error);
+    throw error;
+  }
 }
 
 export async function getRecurringExpensesAction() {
-  return await db.getRecurringExpenses();
+  try {
+    return await db.getRecurringExpenses();
+  } catch (error) {
+    console.error('getRecurringExpensesAction error:', error);
+    throw error;
+  }
 }
 
 export async function saveShiftAction(shift: Shift) {
-  await db.saveShift(shift);
-  
-  const { ip, userAgent } = await getMetadata();
-  await db.addActionLog({
-    date: shift.date,
-    action_type: 'SHIFT_SAVE',
-    description: `Заполнена смена ${shift.date}`,
-    details: `Сотрудники: ${shift.staff.join(', ')}, Сейф на начало: ${shift.start_cash}`,
-    ip,
-    user_agent: userAgent
-  });
+  try {
+    await db.saveShift(shift);
+    
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date: shift.date,
+      action_type: 'SHIFT_SAVE',
+      description: `Заполнена смена ${shift.date}`,
+      details: `Сотрудники: ${shift.staff.join(', ')}, Сейф на начало: ${shift.start_cash}`,
+      ip,
+      user_agent: userAgent
+    });
 
-  revalidatePath(`/day/${shift.date}`);
-  revalidatePath('/');
+    revalidatePath(`/day/${shift.date}`);
+    revalidatePath('/');
+  } catch (error) {
+    console.error('saveShiftAction error:', error);
+    throw error;
+  }
 }
 
 export async function saveFinancialsAction(fin: Financials) {
-  // Получаем текущие данные, чтобы вычислить разницу в наличных
-  const currentData = await db.getFullDay(fin.date);
-  const oldCashRevenue = currentData.financials?.revenue_cash || 0;
-  const cashDiff = fin.revenue_cash - oldCashRevenue;
+  try {
+    // Получаем текущие данные, чтобы вычислить разницу в наличных
+    const currentData = await db.getFullDay(fin.date);
+    const oldCashRevenue = currentData.financials?.revenue_cash || 0;
+    const cashDiff = fin.revenue_cash - oldCashRevenue;
 
-  await db.saveFinancials(fin);
-  
-  const { ip, userAgent } = await getMetadata();
-  
-  // Если есть разница в наличных, обновляем сейф
-  if (cashDiff !== 0) {
-    const balances = await db.getGlobalBalances();
-    const newSafeBalance = (balances.safe || 0) + cashDiff;
-    await db.saveGlobalBalances({ safe: newSafeBalance });
+    await db.saveFinancials(fin);
     
+    const { ip, userAgent } = await getMetadata();
+    
+    // Если есть разница в наличных, обновляем сейф
+    if (cashDiff !== 0) {
+      const balances = await db.getGlobalBalances();
+      const newSafeBalance = (balances.safe || 0) + cashDiff;
+      await db.saveGlobalBalances({ safe: newSafeBalance });
+      
+      await db.addActionLog({
+        date: fin.date,
+        action_type: 'SAFE_AUTO_UPDATE',
+        description: `Авто-корректировка сейфа (выручка нал)`,
+        details: `Разница: ${cashDiff > 0 ? '+' : ''}${cashDiff} ₽. Сейф: ${newSafeBalance} ₽`,
+        ip,
+        user_agent: userAgent
+      });
+    }
+
     await db.addActionLog({
       date: fin.date,
-      action_type: 'SAFE_AUTO_UPDATE',
-      description: `Авто-корректировка сейфа (выручка нал)`,
-      details: `Разница: ${cashDiff > 0 ? '+' : ''}${cashDiff} ₽. Сейф: ${newSafeBalance} ₽`,
+      action_type: 'FINANCIALS_SAVE',
+      description: `Обновлены финансовые данные за ${fin.date}`,
+      details: `Выручка: ${fin.total_revenue}, Нал: ${fin.revenue_cash}, Карта: ${fin.revenue_card}`,
       ip,
       user_agent: userAgent
     });
+
+    revalidatePath(`/day/${fin.date}`);
+    revalidatePath('/');
+  } catch (error) {
+    console.error('saveFinancialsAction error:', error);
+    throw error;
   }
-
-  await db.addActionLog({
-    date: fin.date,
-    action_type: 'FINANCIALS_SAVE',
-    description: `Обновлены финансовые данные за ${fin.date}`,
-    details: `Выручка: ${fin.total_revenue}, Нал: ${fin.revenue_cash}, Карта: ${fin.revenue_card}`,
-    ip,
-    user_agent: userAgent
-  });
-
-  revalidatePath(`/day/${fin.date}`);
-  revalidatePath('/');
 }
 
 export async function addExpenseAction(expense: Expense) {
-  await db.addExpense(expense);
-  
-  const { ip, userAgent } = await getMetadata();
+  try {
+    await db.addExpense(expense);
+    
+    const { ip, userAgent } = await getMetadata();
 
-  // Если расход из наличных (сейфа), убавляем из сейфа
-  if (expense.payment_source === 'cash') {
-    const balances = await db.getGlobalBalances();
-    const newSafeBalance = (balances.safe || 0) - expense.amount;
-    await db.saveGlobalBalances({ safe: newSafeBalance });
+    // Если расход из наличных (сейфа), убавляем из сейфа
+    if (expense.payment_source === 'cash') {
+      const balances = await db.getGlobalBalances();
+      const newSafeBalance = (balances.safe || 0) - expense.amount;
+      await db.saveGlobalBalances({ safe: newSafeBalance });
+      
+      await db.addActionLog({
+        date: expense.date,
+        action_type: 'SAFE_AUTO_UPDATE',
+        description: `Авто-списание из сейфа (расход)`,
+        details: `Сумма: -${expense.amount} ₽. Расход: ${expense.title}. Сейф: ${newSafeBalance} ₽`,
+        ip,
+        user_agent: userAgent
+      });
+    }
     
     await db.addActionLog({
       date: expense.date,
-      action_type: 'SAFE_AUTO_UPDATE',
-      description: `Авто-списание из сейфа (расход)`,
-      details: `Сумма: -${expense.amount} ₽. Расход: ${expense.title}. Сейф: ${newSafeBalance} ₽`,
+      action_type: 'EXPENSE_ADD',
+      description: `Добавлен расход: ${expense.title}`,
+      details: `Сумма: ${expense.amount}, Источник: ${expense.payment_source}`,
       ip,
       user_agent: userAgent
     });
-  }
-  
-  await db.addActionLog({
-    date: expense.date,
-    action_type: 'EXPENSE_ADD',
-    description: `Добавлен расход: ${expense.title}`,
-    details: `Сумма: ${expense.amount}, Источник: ${expense.payment_source}`,
-    ip,
-    user_agent: userAgent
-  });
 
-  revalidatePath(`/day/${expense.date}`);
-  revalidatePath('/');
+    revalidatePath(`/day/${expense.date}`);
+    revalidatePath('/');
+  } catch (error) {
+    console.error('addExpenseAction error:', error);
+    throw error;
+  }
 }
 
 export async function addOperationAction(op: Operation) {

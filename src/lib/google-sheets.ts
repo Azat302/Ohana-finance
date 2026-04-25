@@ -31,15 +31,33 @@ async function getSheetsClient() {
 export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
   try {
     const sheets = await getSheetsClient();
+    const ranges = ['shifts!A:E', 'financials!A:E', 'expenses!A:G', 'operations!A:G', 'discounts!A:F', 'safe_transactions!A:E'];
+    
     const response = await sheets.spreadsheets.values.batchGet({
       spreadsheetId: SPREADSHEET_ID,
-      ranges: ['shifts!A:D', 'financials!A:E', 'expenses!A:G', 'operations!A:G', 'discounts!A:F', 'safe_transactions!A:E'],
+      ranges,
+    }).catch(err => {
+      console.error('batchGet failed, trying individual gets...', err.message);
+      return null;
     });
 
-    const valueRanges = response.data.valueRanges || [];
-    console.log(`Fetched data for ${date}, sheets:`, valueRanges.map(vr => vr.range));
+    let valueRanges: any[] = [];
+    if (response) {
+      valueRanges = response.data.valueRanges || [];
+    } else {
+      // If batchGet failed, try to get each one individually to identify which one is missing
+      const results = await Promise.all(ranges.map(range => 
+        sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range })
+          .then(res => res.data)
+          .catch(err => {
+            console.warn(`Range ${range} not found or inaccessible:`, err.message);
+            return { values: [] };
+          })
+      ));
+      valueRanges = results;
+    }
     
-    const shiftRow = (valueRanges[0].values || []).find(r => r[0] === date);
+    const shiftRow = (valueRanges[0]?.values || []).find((r: any) => r[0] === date);
     let staff: string[] = [];
     try {
       staff = JSON.parse(shiftRow?.[1] || '[]');
@@ -55,7 +73,7 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
       is_manual_start_cash: shiftRow[4] === 'TRUE' || shiftRow[4] === 'true',
     } : null;
 
-    const finRow = (valueRanges[1].values || []).find(r => r[0] === date);
+    const finRow = (valueRanges[1]?.values || []).find((r: any) => r[0] === date);
     const financials: Financials | null = finRow ? {
       date: finRow[0],
       revenue_cash: parseFloat(finRow[1]) || 0,
@@ -64,9 +82,9 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
       profit: parseFloat(finRow[4]) || 0,
     } : null;
 
-    const expenses: Expense[] = (valueRanges[2].values || [])
-      .filter(r => r[1] === date)
-      .map(r => ({
+    const expenses: Expense[] = (valueRanges[2]?.values || [])
+      .filter((r: any) => r[1] === date)
+      .map((r: any) => ({
         id: r[0],
         date: r[1],
         title: r[2],
@@ -77,9 +95,9 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
         payment_type: 'cash',
       }));
 
-    const operations: Operation[] = (valueRanges[3].values || [])
-      .filter(r => r[1] === date)
-      .map(r => ({
+    const operations: Operation[] = (valueRanges[3]?.values || [])
+      .filter((r: any) => r[1] === date)
+      .map((r: any) => ({
         id: r[0],
         date: r[1],
         type: r[2] as any,
@@ -89,20 +107,20 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
         note: r[6],
       }));
 
-    const discounts: Discount[] = (valueRanges[4].values || [])
-      .filter(r => r[1] === date)
-      .map(r => ({
+    const discounts: Discount[] = (valueRanges[4]?.values || [])
+      .filter((r: any) => r[1] === date)
+      .map((r: any) => ({
         id: r[0],
         date: r[1],
         person: r[2],
         amount: parseFloat(r[3]) || 0,
-        count: parseInt(r[5]) || 1, // Column 6
+        count: parseInt(r[5]) || 1,
         note: r[4],
       }));
 
     const safe_transactions: SafeTransaction[] = (valueRanges[5]?.values || [])
-      .filter(r => r[1] === date)
-      .map(r => ({
+      .filter((r: any) => r[1] === date)
+      .map((r: any) => ({
         id: r[0],
         date: r[1],
         time: r[2],
@@ -113,7 +131,6 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
     return { date, shift, financials, expenses, operations, discounts, safe_transactions };
   } catch (error: any) {
     console.error(`Error getFullDay for date ${date}:`, error.message);
-    if (error.response) console.error('API Error Response:', error.response.data);
     return { date, shift: null, financials: null, expenses: [], operations: [], discounts: [], safe_transactions: [] };
   }
 });
@@ -352,39 +369,71 @@ export async function deleteRowById(sheetName: string, id: string) {
 }
 
 export async function saveGlobalBalances(balances: Partial<GlobalBalances>) {
-  const sheets = await getSheetsClient();
-  const timestamp = new Date().toISOString();
-  
-  if (balances.safe !== undefined) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'config!A1:C1',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['safe_balance', balances.safe, timestamp]] }
-    });
-  }
-  
-  if (balances.bank !== undefined) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: 'config!A2:C2',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [['bank_balance', balances.bank, timestamp]] }
-    });
+  try {
+    const sheets = await getSheetsClient();
+    const timestamp = new Date().toISOString();
+    
+    if (balances.safe !== undefined) {
+      console.log('Updating safe balance in config!A1:C1...');
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'config!A1:C1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [['safe_balance', balances.safe, timestamp]] }
+      }).catch(err => {
+        if (err.message?.includes('not found')) {
+          console.warn('Sheet "config" not found for safe_balance');
+        } else {
+          throw err;
+        }
+      });
+    }
+    
+    if (balances.bank !== undefined) {
+      console.log('Updating bank balance in config!A2:C2...');
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: 'config!A2:C2',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [['bank_balance', balances.bank, timestamp]] }
+      }).catch(err => {
+        if (err.message?.includes('not found')) {
+          console.warn('Sheet "config" not found for bank_balance');
+        } else {
+          throw err;
+        }
+      });
+    }
+  } catch (error: any) {
+    console.error('saveGlobalBalances error:', error.message);
+    // Don't throw if it's just a missing config sheet, to allow main save to succeed
+    if (error.message?.includes('not found')) {
+      return;
+    }
+    throw error;
   }
 }
 
 export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'>) {
-  const sheets = await getSheetsClient();
-  const id = Math.random().toString(36).substring(2, 9);
-  const timestamp = new Date().toLocaleString('ru-RU');
-  
-  await sheets.spreadsheets.values.append({
-    spreadsheetId: SPREADSHEET_ID,
-    range: 'action_logs!A:H',
-    valueInputOption: 'USER_ENTERED',
-    requestBody: {
-      values: [[id, timestamp, log.date, log.action_type, log.description, log.details || '', log.ip || '', log.user_agent || '']]
+  try {
+    const sheets = await getSheetsClient();
+    const id = Math.random().toString(36).substring(2, 9);
+    const timestamp = new Date().toLocaleString('ru-RU');
+    
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'action_logs!A:H',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[id, timestamp, log.date, log.action_type, log.description, log.details || '', log.ip || '', log.user_agent || '']]
+      }
+    });
+  } catch (error: any) {
+    console.error('addActionLog error:', error.message);
+    if (error.message?.includes('not found')) {
+      console.warn('Sheet "action_logs" not found. Please create it in your Google Spreadsheet.');
+      return; // Don't throw if it's just a missing logs sheet
     }
-  });
+    throw error;
+  }
 }
