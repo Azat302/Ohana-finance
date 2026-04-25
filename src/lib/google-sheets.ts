@@ -37,7 +37,11 @@ export const getFullDay = cache(async (date: string): Promise<FullDayData> => {
       spreadsheetId: SPREADSHEET_ID,
       ranges,
     }).catch(err => {
-      console.error('batchGet failed, trying individual gets...', err.message);
+      const msg = err.message || '';
+      console.error('batchGet failed, trying individual gets...', msg);
+      if (msg.includes('Unable to parse range')) {
+        console.warn('One or more sheets missing in batchGet');
+      }
       return null;
     });
 
@@ -176,7 +180,8 @@ export const getDashboardSummary = cache(async (): Promise<DashboardSummary[]> =
         profit: profit,
       };
     }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 31); // 31 to cover full month
-  } catch (error) {
+  } catch (error: any) {
+    console.error('getDashboardSummary error:', error.message);
     return [];
   }
 });
@@ -197,7 +202,8 @@ export const getRecurringExpenses = cache(async (): Promise<RecurringExpense[]> 
       day_of_month: parseInt(r[3]) || 1,
       active: r[4] === 'TRUE' || r[4] === 'true',
     }));
-  } catch (error) {
+  } catch (error: any) {
+    console.error('getRecurringExpenses error:', error.message);
     return [];
   }
 });
@@ -218,7 +224,8 @@ export const getGlobalBalances = cache(async (): Promise<GlobalBalances> => {
       bank: parseFloat(bankRow?.[1]) || 0,
       last_updated: safeRow?.[2] || new Date().toISOString(),
     };
-  } catch (error) {
+  } catch (error: any) {
+    console.error('getGlobalBalances error:', error.message);
     return { safe: 0, bank: 0, last_updated: new Date().toISOString() };
   }
 });
@@ -249,7 +256,8 @@ export const getActionLogs = cache(async (date?: string): Promise<ActionLog[]> =
     }
     
     return logs.reverse(); // Newest first
-  } catch (error) {
+  } catch (error: any) {
+    console.error('getActionLogs error:', error.message);
     return [];
   }
 });
@@ -405,9 +413,11 @@ export async function saveGlobalBalances(balances: Partial<GlobalBalances>) {
       });
     }
   } catch (error: any) {
-    console.error('saveGlobalBalances error:', error.message);
+    const msg = error.message || '';
+    console.error('saveGlobalBalances error:', msg);
     // Don't throw if it's just a missing config sheet, to allow main save to succeed
-    if (error.message?.includes('not found')) {
+    if (msg.includes('not found') || msg.includes('Unable to parse range')) {
+      console.warn('Sheet "config" not found or range invalid.');
       return;
     }
     throw error;
@@ -429,9 +439,10 @@ export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'>) {
       }
     });
   } catch (error: any) {
-    console.error('addActionLog error:', error.message);
-    if (error.message?.includes('not found')) {
-      console.warn('Sheet "action_logs" not found. Please create it in your Google Spreadsheet.');
+    const msg = error.message || '';
+    console.error('addActionLog error:', msg);
+    if (msg.includes('not found') || msg.includes('Unable to parse range')) {
+      console.warn('Sheet "action_logs" not found or range invalid. Please create the sheet "action_logs" in your Google Spreadsheet.');
       return; // Don't throw if it's just a missing logs sheet
     }
     throw error;
