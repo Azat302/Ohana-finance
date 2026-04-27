@@ -620,7 +620,16 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         )}
 
         {activeTab === 'expenses' && (
-          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+            <div className="flex items-center gap-4 mb-2">
+              <button 
+                onClick={() => setActiveTab('menu')}
+                className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50"
+              >
+                <ArrowRight className="h-5 w-5 rotate-180" />
+              </button>
+              <h2 className="text-2xl font-black text-gray-900">Расходы</h2>
+            </div>
             <ExpensesManager initialDate={today} />
           </div>
         )}
@@ -628,7 +637,15 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         {activeTab === 'salaries' && (
           <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
             <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h2 className="text-2xl font-black text-gray-900">Выплаты персоналу</h2>
+              <div className="flex items-center gap-4">
+                <button 
+                  onClick={() => setActiveTab('menu')}
+                  className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50"
+                >
+                  <ArrowRight className="h-5 w-5 rotate-180" />
+                </button>
+                <h2 className="text-2xl font-black text-gray-900">Выплаты персоналу</h2>
+              </div>
               <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
                 <Calendar className="h-5 w-5 text-gray-400 ml-2" />
                 <input 
