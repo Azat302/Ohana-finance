@@ -503,7 +503,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                   <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 group-hover:scale-110 transition-transform">
                     <Wallet className="h-6 w-6" />
                   </div>
-                  <span className="text-sm font-black text-gray-900">Расходы</span>
+                  <span className="text-xs font-black text-gray-900">Расходы</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('salaries')}
@@ -512,7 +512,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                   <div className="p-3 bg-green-50 rounded-2xl text-green-600 group-hover:scale-110 transition-transform">
                     <Users className="h-6 w-6" />
                   </div>
-                  <span className="text-sm font-black text-gray-900">Зарплаты</span>
+                  <span className="text-xs font-black text-gray-900">Зарплаты</span>
                 </button>
                 <button 
                   onClick={() => setActiveTab('agent')}
@@ -521,7 +521,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                   <div className="p-3 bg-purple-50 rounded-2xl text-purple-600 group-hover:scale-110 transition-transform">
                     <MessageSquare className="h-6 w-6" />
                   </div>
-                  <span className="text-sm font-black text-gray-900">Агент</span>
+                  <span className="text-xs font-black text-gray-900">Агент</span>
                 </button>
               </div>
             </div>
@@ -748,7 +748,22 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                                 <span className="text-xs font-black text-gray-900 shrink-0">{log.timestamp}</span>
                                 <span className="text-[10px] font-black text-blue-600 uppercase truncate">{log.action_type}</span>
                               </div>
-                              <p className="text-sm font-bold text-gray-500 leading-tight break-words">{log.description}</p>
+                              <p className="text-sm font-bold text-gray-500 leading-tight break-words mb-1">{log.description}</p>
+                              {(log.ip || log.user_agent) && (
+                                <div className="flex flex-wrap gap-2 text-[8px] font-black text-gray-400 uppercase tracking-tighter">
+                                  {log.ip && (
+                                    <span className="bg-gray-50 px-1 rounded border border-gray-100">IP: {log.ip}</span>
+                                  )}
+                                  {log.user_agent && (
+                                    <span className="bg-gray-50 px-1 rounded border border-gray-100 truncate max-w-[150px]">
+                                      {log.user_agent.includes('iPhone') ? 'iPhone' : 
+                                       log.user_agent.includes('Android') ? 'Android' : 
+                                       log.user_agent.includes('Macintosh') ? 'Mac' : 
+                                       log.user_agent.includes('Windows') ? 'PC' : 'Device'}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -762,39 +777,39 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         )}
 
         {activeTab === 'settings' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center gap-4 mb-2">
+          <div className="space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-500 scale-[0.8] origin-top-left w-[125%]">
+            <div className="flex items-center gap-3 mb-1">
               <button 
                 onClick={() => setActiveTab('menu')}
-                className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50"
+                className="p-1.5 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-gray-50"
               >
-                <ArrowRight className="h-5 w-5 rotate-180" />
+                <ArrowRight className="h-4 w-4 rotate-180" />
               </button>
-              <h2 className="text-2xl font-black text-gray-900">Настройки</h2>
+              <h2 className="text-xl font-black text-gray-900">Настройки</h2>
             </div>
             
-            <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100">
+            <div className="bg-white rounded-[1.5rem] p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-2xl ${isFaceIdEnabled ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
-                    <Fingerprint className="h-8 w-8" />
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${isFaceIdEnabled ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-400'}`}>
+                    <Fingerprint className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-gray-900">Вход по Face ID</h3>
-                    <p className="text-sm font-bold text-gray-500">
+                    <h3 className="text-base font-black text-gray-900">Вход по Face ID</h3>
+                    <p className="text-xs font-bold text-gray-500">
                       {isFaceIdEnabled ? 'Включено' : 'Используйте биометрию для быстрого входа'}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleToggleFaceId}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
                     isFaceIdEnabled ? 'bg-blue-600' : 'bg-gray-200'
                   }`}
                 >
                   <span
-                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                      isFaceIdEnabled ? 'translate-x-7' : 'translate-x-1'
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      isFaceIdEnabled ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
                 </button>
