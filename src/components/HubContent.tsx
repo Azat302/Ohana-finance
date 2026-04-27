@@ -311,10 +311,22 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         })
         .reduce((sum, s) => sum + (Number(s.profit) || 0), 0);
 
-      return { currentWeekRevenue, currentMonthRevenue, currentMonthProfit };
+      // Last 7 days profit for chart
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const d = subDays(now, 6 - i);
+        const dStr = format(d, 'yyyy-MM-dd');
+        const daySummary = activeSummaries.find(s => s.date === dStr);
+        return {
+          date: dStr,
+          profit: daySummary ? Number(daySummary.profit) : 0,
+          label: format(d, 'dd.MM')
+        };
+      });
+
+      return { currentWeekRevenue, currentMonthRevenue, currentMonthProfit, last7Days };
     } catch (err) {
       console.error('Stats calculation error:', err);
-      return { currentWeekRevenue: 0, currentMonthRevenue: 0, currentMonthProfit: 0 };
+      return { currentWeekRevenue: 0, currentMonthRevenue: 0, currentMonthProfit: 0, last7Days: [] };
     }
   }, [summaries]);
 
@@ -374,51 +386,61 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Шапка */}
-      <div className="bg-white px-6 py-6 sticky top-0 z-30">
+      <div className="bg-gray-50 px-6 py-4 sticky top-0 z-30 transition-all">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Ohana</h1>
+          <h1 className="text-xl font-black text-gray-900 tracking-tight">Ohana</h1>
           
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-gray-400">Сейф:</span>
+            <span className="text-xs font-bold text-gray-400">Сейф:</span>
             <span className="text-sm font-black text-blue-600">
-              {balances.safe.toLocaleString()} ₸
+              {balances.safe.toLocaleString()} ₽
             </span>
           </div>
 
           <div className="flex items-center gap-2">
             <button 
               onClick={() => setActiveTab('history')}
-              className="p-2.5 hover:bg-gray-50 rounded-2xl transition-all active:scale-90"
+              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100"
             >
-              <History className="h-6 w-6 text-gray-900" />
+              <History className="h-5 w-5 text-gray-900" />
             </button>
             <button 
               onClick={() => setActiveTab('settings')}
-              className="p-2.5 hover:bg-gray-50 rounded-2xl transition-all active:scale-90"
+              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100"
             >
-              <Settings className="h-6 w-6 text-gray-900" />
+              <Settings className="h-5 w-5 text-gray-900" />
             </button>
           </div>
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto p-4 pb-24">
+      <main className="max-w-7xl mx-auto p-4 pb-24 overflow-x-hidden">
         {activeTab === 'menu' && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Аналитика */}
             <button 
               onClick={() => setActiveTab('analytics')}
-              className="w-full bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 group text-left relative overflow-hidden transition-all active:scale-[0.98]"
+              className="w-full bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 group text-left relative overflow-hidden transition-all active:scale-[0.98]"
             >
               <div className="relative z-10">
-                <div className="flex justify-between items-start mb-12">
-                  <div className="h-48 w-full relative">
-                    {/* SVG Wave chart */}
-                    <svg className="w-full h-full overflow-visible" viewBox="0 0 400 150">
+                <div className="mb-6">
+                  <div className="h-32 w-full relative flex items-end justify-between px-2">
+                    {/* SVG Chart for real data */}
+                    <svg className="absolute inset-0 w-full h-full overflow-visible" viewBox="0 0 400 120" preserveAspectRatio="none">
                       <path 
-                        d="M 0 100 Q 25 20, 50 80 T 100 40 T 150 90 T 200 50 T 250 80 T 300 30 T 350 70 T 400 40" 
+                        d={(() => {
+                          const last7Days = stats.last7Days || [];
+                          const profits = last7Days.map(d => d.profit);
+                          const maxProfit = Math.max(...profits, 10000);
+                          const points = profits.map((p, i) => {
+                            const x = (i / Math.max(last7Days.length - 1, 1)) * 400;
+                            const y = 120 - (p / maxProfit) * 100;
+                            return `${x},${y}`;
+                          });
+                          return points.length > 0 ? `M ${points.join(' L ')}` : '';
+                        })()}
                         fill="none" 
                         stroke="black" 
                         strokeWidth="3"
@@ -426,6 +448,33 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                         className="opacity-90"
                       />
                     </svg>
+                    
+                    {/* Data Points / Numbers */}
+                    {(stats.last7Days || []).map((d, i) => {
+                      const last7Days = stats.last7Days || [];
+                      const profits = last7Days.map(day => day.profit);
+                      const maxProfit = Math.max(...profits, 10000);
+                      const y = 120 - (d.profit / maxProfit) * 100;
+                      return (
+                        <div 
+                          key={d.date} 
+                          className="flex flex-col items-center z-20"
+                          style={{ position: 'absolute', left: `${(i/Math.max(last7Days.length - 1, 1))*100}%`, bottom: `${120 - y + 10}px`, transform: 'translateX(-50%)' }}
+                        >
+                          <span className="text-[8px] font-black text-gray-900 bg-white/80 px-1 rounded">
+                            {d.profit > 0 ? `${(d.profit/1000).toFixed(0)}k` : ''}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* Dates for chart */}
+                  <div className="flex justify-between mt-2 px-1">
+                    {(stats.last7Days || []).map(d => (
+                      <span key={d.date} className="text-[8px] font-black text-gray-300 uppercase">
+                        {d.label}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
@@ -433,10 +482,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                   <div>
                     <h3 className="text-lg font-black text-gray-900 mb-1">Аналитика</h3>
                     <div className="text-sm font-bold text-gray-500 mb-1">
-                      Прибыль месяца: <span className="text-gray-900">{stats.currentMonthProfit.toLocaleString()} ₸</span>
-                    </div>
-                    <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
-                      {format(subDays(new Date(), 7), 'dd.MM.yy')} - {format(new Date(), 'dd.MM.yy')}
+                      Прибыль месяца: <span className="text-gray-900">{stats.currentMonthProfit.toLocaleString()} ₽</span>
                     </div>
                   </div>
                   <div className="h-10 w-10 bg-black rounded-full flex items-center justify-center text-white shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform">
@@ -629,7 +675,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                             <div className="text-sm font-black text-gray-900">{s.title}</div>
                           </td>
                           <td className="px-6 py-4 text-right">
-              <div className="text-sm font-black text-blue-600">{s.amount.toLocaleString()} ₸</div>
+              <div className="text-sm font-black text-blue-600">{s.amount.toLocaleString()} ₽</div>
             </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
@@ -651,7 +697,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         )}
 
         {activeTab === 'history' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 w-full max-w-full overflow-x-hidden">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <button 
@@ -660,13 +706,13 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                 >
                   <ArrowRight className="h-5 w-5 rotate-180" />
                 </button>
-                <h2 className="text-2xl font-black text-gray-900">История действий</h2>
+                <h2 className="text-2xl font-black text-gray-900">История</h2>
               </div>
               <input 
                 type="date"
                 value={selectedLogDate}
                 onChange={(e) => setSelectedLogDate(e.target.value)}
-                className="text-sm font-bold text-gray-700 border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500"
+                className="text-sm font-bold text-gray-700 border-gray-200 rounded-xl focus:ring-blue-500 focus:border-blue-500 w-full md:w-auto"
               />
             </div>
 
@@ -680,29 +726,29 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                 <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Логи не найдены</p>
               </div>
             ) : (
-              <div className="space-y-8">
+              <div className="space-y-8 pb-10">
                 {Object.entries(groupedLogs).sort((a, b) => b[0].localeCompare(a[0])).map(([date, dateLogs]) => (
                   <div key={date} className="space-y-4">
                     <div className="flex items-center gap-4">
                       <div className="h-px flex-1 bg-gray-100" />
-                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                         {format(parseISO(date), 'dd MMMM yyyy', { locale: ru })}
                       </span>
                       <div className="h-px flex-1 bg-gray-100" />
                     </div>
                     <div className="grid gap-3">
                       {dateLogs.map((log) => (
-                        <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:border-blue-200 transition-all">
-                          <div className="flex items-center gap-4">
-                            <div className="p-2 bg-gray-50 rounded-xl text-gray-400 group-hover:text-blue-500 transition-colors">
-                              <Clock className="h-5 w-5" />
+                        <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start justify-between group hover:border-blue-200 transition-all overflow-hidden">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="p-2 bg-gray-50 rounded-xl text-gray-400 group-hover:text-blue-500 transition-colors shrink-0">
+                              <Clock className="h-4 w-4" />
                             </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-black text-gray-900">{log.timestamp}</span>
-                                <span className="text-xs font-black text-blue-600 uppercase">{log.action_type}</span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-xs font-black text-gray-900 shrink-0">{log.timestamp}</span>
+                                <span className="text-[10px] font-black text-blue-600 uppercase truncate">{log.action_type}</span>
                               </div>
-                              <p className="text-sm font-bold text-gray-500">{log.description}</p>
+                              <p className="text-sm font-bold text-gray-500 leading-tight break-words">{log.description}</p>
                             </div>
                           </div>
                         </div>
