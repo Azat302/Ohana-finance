@@ -143,7 +143,7 @@ export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'>) {
   const newLog = {
     ...log,
     id: Math.random().toString(36).substring(2, 9),
-    timestamp: new Date().toLocaleString('ru-RU')
+    timestamp: new Date().toISOString()
   };
   db.action_logs.push(newLog);
   await writeDb(db);

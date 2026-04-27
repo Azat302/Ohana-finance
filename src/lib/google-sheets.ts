@@ -434,7 +434,7 @@ export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'>) {
   try {
     const sheets = await getSheetsClient();
     const id = Math.random().toString(36).substring(2, 9);
-    const timestamp = new Date().toLocaleString('ru-RU');
+    const timestamp = new Date().toISOString();
     
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,

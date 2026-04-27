@@ -80,9 +80,30 @@ export async function getRecurringExpensesAction() {
 
 export async function saveShiftAction(shift: Shift) {
   try {
+    const oldData = await db.getFullDay(shift.date);
+    const oldStartCash = oldData.shift?.start_cash || 0;
+    const diff = shift.start_cash - oldStartCash;
+
     await db.saveShift(shift);
     
     const { ip, userAgent } = await getMetadata();
+
+    // Если изменился начальный остаток (например, ввели вручную), обновляем глобальный баланс
+    if (diff !== 0) {
+      const balances = await db.getGlobalBalances();
+      const newSafeBalance = (balances.safe || 0) + diff;
+      await db.saveGlobalBalances({ safe: newSafeBalance });
+      
+      await db.addActionLog({
+        date: shift.date,
+        action_type: 'SAFE_AUTO_UPDATE',
+        description: `Корректировка сейфа (изменение остатка на начало)`,
+        details: `Разница: ${diff > 0 ? '+' : ''}${diff} ₽. Сейф: ${newSafeBalance} ₽`,
+        ip,
+        user_agent: userAgent
+      });
+    }
+
     await db.addActionLog({
       date: shift.date,
       action_type: 'SHIFT_SAVE',
@@ -93,6 +114,7 @@ export async function saveShiftAction(shift: Shift) {
     });
 
     revalidatePath(`/day/${shift.date}`);
+    revalidatePath('/hub');
     revalidatePath('/');
     return { success: true };
   } catch (error) {
@@ -191,11 +213,15 @@ export async function addOperationAction(op: Operation) {
     await db.addOperation(op);
     
     const { ip, userAgent } = await getMetadata();
+    const description = op.type === 'taxi' ? `Добавлено такси: ${op.amount}₽` : 
+                        op.type === 'staff_hookah' ? `Добавлен стафф-кальян: ${op.count}шт` : 
+                        `Добавлена операция: ${op.type}`;
+    
     await db.addActionLog({
       date: op.date,
       action_type: 'OPERATION_ADD',
-      description: `Добавлена операция: ${op.type}`,
-      details: `Сотрудник: ${op.person}, Сумма: ${op.amount}`,
+      description,
+      details: `Сотрудник: ${op.person}, Сумма: ${op.amount}, Комментарий: ${op.note || 'нет'}`,
       ip,
       user_agent: userAgent
     });
@@ -349,7 +375,36 @@ export async function deleteItemAction(sheetName: string, id: string, date: stri
 
 export async function getGlobalBalancesAction() {
   try {
-    return await db.getGlobalBalances();
+    const balances = await db.getGlobalBalances();
+    
+    // Если сейф 0, пробуем вычислить его из последней смены
+    if (balances.safe === 0) {
+      const summaries = await db.getDashboardSummary();
+      if (summaries.length > 0) {
+        // Берем последнюю дату, где есть данные
+        const lastDate = summaries[0].date;
+        const lastDayData = await db.getFullDay(lastDate);
+        
+        if (lastDayData.shift) {
+          const startCash = lastDayData.shift.start_cash || 0;
+          const safeTrans = lastDayData.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
+          const cashRevenue = lastDayData.financials?.revenue_cash || 0;
+          const cashExpenses = lastDayData.expenses
+            ?.filter(e => e.payment_source === 'cash')
+            ?.reduce((sum, e) => sum + e.amount, 0) || 0;
+          
+          const currentSafe = startCash + safeTrans + cashRevenue - cashExpenses;
+          
+          if (currentSafe !== 0) {
+            balances.safe = currentSafe;
+            // Сохраняем вычисленный баланс, чтобы в следующий раз не пересчитывать
+            await db.saveGlobalBalances({ safe: currentSafe });
+          }
+        }
+      }
+    }
+    
+    return balances;
   } catch (error) {
     console.error('getGlobalBalancesAction error:', error);
     throw error;
