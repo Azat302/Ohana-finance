@@ -10,7 +10,6 @@ import {
   BarChart3, 
   Calendar, 
   MessageSquare, 
-  Settings,
   ArrowRight,
   Wallet,
   History,
@@ -25,10 +24,8 @@ import { ru } from 'date-fns/locale';
 import { 
   getActionLogAction, 
   getExpensesByMonthAction,
-  saveGlobalBalancesAction,
-  getAllOperationsAction
+  saveGlobalBalancesAction
 } from '@/app/actions';
-import { Operation } from '@/types';
 
 interface Props {
   today: string;
@@ -47,8 +44,9 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   const [logs, setLogs] = useState<ActionLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [selectedLogDate, setSelectedLogDate] = useState<string>('');
-  const [allOperations, setAllOperations] = useState<Operation[]>([]);
+  const [salaries, setSalaries] = useState<Expense[]>([]);
   const [isLoadingSalaries, setIsLoadingSalaries] = useState(false);
+  const [salaryMonth, setSalaryMonth] = useState(format(new Date(), 'yyyy-MM'));
   
   const HUB_PASSWORD = '123';
 
@@ -67,8 +65,12 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   const loadSalaries = async () => {
     setIsLoadingSalaries(true);
     try {
-      const results = await getAllOperationsAction();
-      setAllOperations(results);
+      const results = await getExpensesByMonthAction(salaryMonth);
+      const staffExpenses = results.filter((e: Expense) => 
+        e.title.toLowerCase().startsWith('зп ') || 
+        e.title.toLowerCase().startsWith('премия ')
+      );
+      setSalaries(staffExpenses);
     } catch (err: any) {
       console.error('Error loading salaries:', err);
     } finally {
@@ -82,13 +84,11 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
     } else if (activeTab === 'salaries') {
       loadSalaries();
     }
-  }, [activeTab]);
+  }, [activeTab, salaryMonth]);
 
-  const filteredSalaries = useMemo(() => {
-    return allOperations.filter(op => 
-      op.type === 'staff'
-    ).sort((a, b) => b.date.localeCompare(a.date));
-  }, [allOperations]);
+  const sortedSalaries = useMemo(() => {
+    return [...salaries].sort((a, b) => b.date.localeCompare(a.date));
+  }, [salaries]);
 
   const groupedLogs = useMemo(() => {
     const groups: { [key: string]: ActionLog[] } = {};
@@ -315,6 +315,14 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         <div className="bg-white p-6 rounded-[2rem] border border-gray-100 min-h-[400px] flex flex-col">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-black text-gray-900 tracking-tighter uppercase italic">Зарплаты</h2>
+            <div className="flex items-center gap-2">
+              <input 
+                type="month" 
+                value={salaryMonth}
+                onChange={(e) => setSalaryMonth(e.target.value)}
+                className="text-[10px] font-black uppercase p-2 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
           </div>
 
           {isLoadingSalaries ? (
@@ -322,39 +330,44 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
               <Loader2 className="animate-spin" size={24} />
               <span className="text-[9px] font-black uppercase tracking-widest">Загрузка...</span>
             </div>
-          ) : filteredSalaries.length === 0 ? (
+          ) : sortedSalaries.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-300 italic">
-              <span className="text-[9px] font-black uppercase tracking-widest">Нет данных</span>
+              <span className="text-[9px] font-black uppercase tracking-widest">Нет данных за этот месяц</span>
             </div>
           ) : (
             <div className="divide-y divide-gray-50">
-              {filteredSalaries.map((op) => (
-                <div key={op.id} className="py-3 flex items-center justify-between group">
-                  <div className="flex flex-col">
-                    <div className="text-xs font-black text-gray-800 uppercase tracking-tight">
-                      {op.person}
+              {sortedSalaries.map((op) => {
+                const isSalary = op.title.toLowerCase().startsWith('зп');
+                const name = op.title.split(' ').slice(1).join(' ');
+                
+                return (
+                  <div key={op.id} className="py-3 flex items-center justify-between group">
+                    <div className="flex flex-col">
+                      <div className="text-xs font-black text-gray-800 uppercase tracking-tight">
+                        {name || op.title}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase">
+                          {format(parseISO(op.date), 'dd.MM')}
+                        </span>
+                        <span className={`text-[9px] font-black uppercase tracking-tighter ${isSalary ? 'text-purple-400' : 'text-orange-400'}`}>
+                          {isSalary ? 'ЗП' : 'Премия'}
+                        </span>
+                        <span className="text-[9px] font-medium text-gray-300 uppercase tracking-tighter">
+                          {op.payment_source === 'cash' ? 'Нал' : 'РС'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] font-bold text-gray-400 uppercase">
-                        {format(parseISO(op.date), 'dd.MM')}
-                      </span>
-                      <span className="text-[9px] font-black text-purple-400 uppercase tracking-tighter">
-                        {op.note || 'ЗП'}
-                      </span>
-                      <span className="text-[9px] font-medium text-gray-300 uppercase tracking-tighter">
-                        Нал
-                      </span>
+                    <div className="text-sm font-black text-gray-900">
+                      {op.amount.toLocaleString()} ₽
                     </div>
                   </div>
-                  <div className="text-sm font-black text-gray-900">
-                    {op.amount.toLocaleString()} ₽
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               <div className="pt-4 mt-2 border-t border-gray-100 flex justify-between items-center">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Всего выплат:</span>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Всего за {format(parseISO(`${salaryMonth}-01`), 'LLLL', { locale: ru })}:</span>
                 <span className="text-sm font-black text-purple-600">
-                  {filteredSalaries.reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
+                  {sortedSalaries.reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
                 </span>
               </div>
             </div>
