@@ -801,51 +801,12 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                     }
                   }}
                   disabled={isPaying}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full text-sm font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-lg"
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full text-sm font-black transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-sm"
                 >
                   {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : `Оплатить ${salaries.filter(s => selectedSalaries.includes(s.id)).reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽`}
                 </button>
               )}
             </div>
-
-            {/* Floating Payment Bar */}
-            {selectedSalaries.length > 0 && (
-              <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-8 duration-300">
-                <div className="bg-gray-900 text-white px-6 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md bg-opacity-90">
-                  <div className="flex flex-col">
-                    <span className="text-[8px] font-black uppercase text-white/40 tracking-widest leading-none mb-1">К оплате ({selectedSalaries.length})</span>
-                    <span className="text-base font-black leading-none">
-                      {salaries.filter(s => selectedSalaries.includes(s.id)).reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
-                    </span>
-                  </div>
-                  <button 
-                    onClick={async () => {
-                      if (isPaying) return;
-                      setIsPaying(true);
-                      try {
-                        const result = await paySalariesAction(selectedSalaries);
-                        if (result.success) {
-                          await loadSalaries();
-                          setSelectedSalaries([]);
-                          setIsSelectionMode(false);
-                        } else {
-                          alert('Ошибка при оплате: ' + (typeof result.error === 'object' ? JSON.stringify(result.error) : result.error));
-                        }
-                      } catch (err) {
-                        console.error('Payment error:', err);
-                        alert('Произошла ошибка при обработке платежа');
-                      } finally {
-                        setIsPaying(false);
-                      }
-                    }}
-                    disabled={isPaying}
-                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Оплатить'}
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
