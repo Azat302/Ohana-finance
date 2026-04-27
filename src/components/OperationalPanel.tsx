@@ -11,9 +11,10 @@ import {
   addOperationAction, 
   addDiscountAction,
   addSafeTransactionAction,
-  deleteItemAction 
+  deleteItemAction,
+  deleteDayAction 
 } from '@/app/actions';
-import { Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck, WalletCards, ShieldCheck } from 'lucide-react';
+import { Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck, WalletCards, ShieldCheck, Pencil } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SafeTransaction } from '@/types';
 import Link from 'next/link';
@@ -26,7 +27,7 @@ interface Props {
 export default function OperationalPanel({ initialData, date }: Props) {
   const isToday = date === format(new Date(), 'yyyy-MM-dd');
   const [data, setData] = useState<FullDayData>(initialData);
-  const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | 'safe' | 'safe_manual' | null>(null);
+  const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | 'safe' | 'safe_manual' | 'delete_confirm' | null>(null);
   const [salaryPerson, setSalaryPerson] = useState<string | null>(null);
   const [salaryType, setSalaryType] = useState<'salary' | 'bonus' | null>(null);
   const [salaryPaymentSource, setSalaryPaymentSource] = useState<'cash' | 'bank'>('cash');
@@ -35,7 +36,36 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isLocked, setIsLocked] = useState(!isToday);
   const [password, setPassword] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
   const EDIT_PASSWORD = '3451';
+  const HUB_PASSWORD = 'OhanaBest302!';
+
+  const handleDeleteDay = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
+    if (deletePassword === HUB_PASSWORD) {
+      if (confirm('Вы уверены, что хотите полностью удалить все данные за этот день? Это действие необратимо.')) {
+        setIsSaving(true);
+        try {
+          const result = await deleteDayAction(date);
+          if (result.success) {
+            window.location.reload();
+          } else {
+            alert('Ошибка при удалении: ' + result.error);
+          }
+        } catch (error: any) {
+          alert('Ошибка: ' + error.message);
+        } finally {
+          setIsSaving(false);
+          setModal(null);
+          setDeletePassword('');
+        }
+      }
+    } else {
+      alert('Неверный пароль администратора');
+      setDeletePassword('');
+    }
+  };
 
   // Helper for real-time calculations
   const calculateFinancials = (revCash: number, revCard: number, expenses: Expense[] = data.expenses) => {
@@ -369,22 +399,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
   };
 
   return (
-    <div className="space-y-4 pb-32">
-      {/* Header */}
-      <header className="flex items-center gap-4 px-1 py-2">
-        <Link href="/" className="p-2 bg-white rounded-xl shadow-sm border border-gray-100 active:scale-90 transition-all">
-          <ArrowLeft size={20} className="text-gray-400" />
-        </Link>
-        <div>
-          <h1 className="text-xl font-black text-gray-900 tracking-tight">
-            {format(parseISO(date), 'd MMMM', { locale: ru })}
-          </h1>
-          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-            {format(parseISO(date), 'eeee', { locale: ru })}
-          </p>
-        </div>
-      </header>
-
+    <div className="space-y-6 pb-32 max-w-lg mx-auto px-4 pt-4">
       {/* Modals - Optimized for Mobile Touch */}
       {modal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -392,13 +407,37 @@ export default function OperationalPanel({ initialData, date }: Props) {
           <div className="relative bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-2xl font-black uppercase tracking-tighter">
-                {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : modal === 'safe' ? '🛡️ Сейф' : '🔒 Доступ'}
+                {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : modal === 'safe' ? '🛡️ Сейф' : modal === 'delete_confirm' ? '🗑️ Удаление' : '🔒 Доступ'}
               </h3>
               <button type="button" onClick={() => ['salary', 'salary_type', 'salary_amount'].includes(modal || '') ? handleSalaryClose() : setModal(null)} className="p-2 text-gray-400"><X /></button>
             </div>
             
-            <form onSubmit={['salary_amount'].includes(modal) ? handleSalarySubmit : handleModalSubmit} className="space-y-4">
-              {modal === 'safe' ? (
+            <form onSubmit={
+              ['salary_amount', 'salary_type', 'salary'].includes(modal) 
+                ? handleSalarySubmit 
+                : modal === 'delete_confirm' 
+                ? handleDeleteDay 
+                : handleModalSubmit
+            } className="space-y-4">
+              {modal === 'delete_confirm' ? (
+                <div className="space-y-4">
+                  <div className="bg-red-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-red-500 mb-4">
+                    <Trash2 size={32} />
+                  </div>
+                  <div className="space-y-1 text-center">
+                    <p className="text-xs font-bold text-gray-500 mb-4">Для полного удаления данных за день введите сложный пароль хаба</p>
+                    <input 
+                      type="password" 
+                      placeholder="••••••••" 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center tracking-[0.2em]" 
+                      value={deletePassword}
+                      onChange={e => setDeletePassword(e.target.value)}
+                      required 
+                      autoFocus 
+                    />
+                  </div>
+                </div>
+              ) : modal === 'safe' ? (
                 <div className="space-y-4">
                   <div className="bg-emerald-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-emerald-500 mb-4">
                     <ShieldCheck size={32} />
@@ -601,8 +640,14 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 </>
               )}
             {!['salary', 'salary_type', 'salary_amount'].includes(modal || '') && (
-              <button type="submit" disabled={isSaving} className="w-full bg-gray-900 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
-                {isSaving ? <Loader2 className="animate-spin" /> : modal === 'password' ? 'Разблокировать' : 'Подтвердить'}
+              <button 
+                type="submit" 
+                disabled={isSaving} 
+                className={`w-full p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all ${
+                  modal === 'delete_confirm' ? 'bg-red-500 text-white' : 'bg-gray-900 text-white'
+                }`}
+              >
+                {isSaving ? <Loader2 className="animate-spin" /> : modal === 'password' ? 'Разблокировать' : modal === 'delete_confirm' ? 'Удалить всё' : 'Подтвердить'}
               </button>
             )}
             </form>
@@ -610,302 +655,230 @@ export default function OperationalPanel({ initialData, date }: Props) {
         </div>
       )}
 
-      {/* Staff & Safe Block */}
-      <section className={`bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4 ${isLocked ? 'opacity-60' : ''}`}>
+      {/* New Header */}
+      <header className="flex justify-between items-center px-1">
+        <div className="flex items-baseline gap-4">
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Смена</h1>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-bold text-gray-400">Сейф:</span>
+            <span className="text-xs font-black text-emerald-500">
+              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => isLocked ? setModal('password') : setIsLocked(true)} 
+            className="p-2 text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <Pencil size={20} />
+          </button>
+          <button 
+            onClick={() => setModal('delete_confirm')}
+            className="p-2 text-gray-900 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"
+          >
+            <Trash2 size={20} />
+          </button>
+        </div>
+      </header>
+
+      {/* Block: Персонал и касса */}
+      <section className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-8 relative overflow-hidden border border-gray-50">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-wider">
-            <Users size={14} /> Персонал и Касса
-          </div>
-          {isLocked && (
-            <div className="flex items-center gap-1 text-[8px] font-black text-amber-500 uppercase tracking-widest bg-amber-50 px-2 py-0.5 rounded-full">
-              <Lock size={8} /> Только чтение
-            </div>
-          )}
-        </div>
-        <div className="space-y-3">
-          <input 
-            placeholder="Имена сотрудников" 
-            className="w-full p-4 bg-gray-50 rounded-2xl text-sm border-none focus:ring-2 focus:ring-blue-500 font-medium"
-            defaultValue={data.shift?.staff.join(', ')}
-            disabled={isLocked}
-            onBlur={e => handleSaveShift({ staff: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-          />
-          <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"><Wallet size={16} /></div>
-            <div 
-              className={`w-full p-4 pl-12 bg-gray-50 rounded-2xl text-sm border-none font-bold cursor-pointer ${data.shift?.is_manual_start_cash ? 'text-amber-600' : 'text-gray-900'}`}
-              onClick={() => !isLocked && setModal('safe_manual')}
-            >
-              {data.shift?.start_cash.toLocaleString() || 0} ₽
-              <span className="ml-2 text-[8px] font-black uppercase opacity-40">
-                {data.shift?.is_manual_start_cash ? '(Вручную)' : '(Авто)'}
-              </span>
-            </div>
-          </div>
-          <div className="flex justify-between items-center px-4 py-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-            <div className="text-[10px] font-black uppercase text-emerald-600 tracking-wider">Текущий остаток в сейфе</div>
-            <div className="text-sm font-black text-emerald-700">
-              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()} ₽
-            </div>
+          <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] opacity-30">Персонал и касса</div>
+          <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">
+            {format(parseISO(date), 'dd MMMM', { locale: ru })}
           </div>
         </div>
-      </section>
-
-      {/* Revenue Section with Auto-Save */}
-      <section className={`bg-blue-600 rounded-3xl p-5 shadow-xl text-white space-y-5 transition-all ${isLocked ? 'grayscale-[0.5] opacity-80' : ''}`}>
-        <div className="flex justify-between items-start">
-          <div className="space-y-1">
-            <div className="text-xs opacity-70 font-black uppercase tracking-widest">Выручка за смену</div>
-            <div className="text-4xl font-black">{(data.financials?.total_revenue || 0).toLocaleString()} ₽</div>
-          </div>
-          {isLocked && <Lock className="opacity-30" size={20} />}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-white/10 p-4 rounded-2xl">
-            <div className="text-[10px] uppercase font-black opacity-60 mb-1 tracking-wider">Наличные</div>
-            <input 
-              type="number" 
-              inputMode="decimal"
-              className="w-full bg-transparent text-2xl font-black border-none p-0 focus:ring-0 placeholder:text-white/20" 
-              placeholder="0"
-              disabled={isLocked}
-              value={data.financials?.revenue_cash || ''} 
-              onChange={e => handleRevenueChange('cash', e.target.value)}
-              onBlur={e => handleSaveFin({ revenue_cash: parseFloat(e.target.value) || 0 })} 
-            />
-          </div>
-          <div className="bg-white/10 p-4 rounded-2xl">
-            <div className="text-[10px] uppercase font-black opacity-60 mb-1 tracking-wider">Карта</div>
-            <input 
-              type="number" 
-              inputMode="decimal"
-              className="w-full bg-transparent text-2xl font-black border-none p-0 focus:ring-0 placeholder:text-white/20" 
-              placeholder="0"
-              disabled={isLocked}
-              value={data.financials?.revenue_card || ''} 
-              onChange={e => handleRevenueChange('card', e.target.value)}
-              onBlur={e => handleSaveFin({ revenue_card: parseFloat(e.target.value) || 0 })} 
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Action Buttons */}
-      <div className={`grid grid-cols-2 gap-2 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
-        <button 
-          type="button"
-          onClick={() => !isLocked && setModal('staff_hookah')} 
-          disabled={isLocked}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
-        >
-          <div className="bg-orange-100 p-2 rounded-xl pointer-events-none"><Coffee className="text-orange-500" size={24} /></div>
-          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Кальян</span>
-        </button>
-        <button 
-          type="button"
-          onClick={() => !isLocked && setModal('expense')} 
-          disabled={isLocked}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
-        >
-          <div className="bg-red-100 p-2 rounded-xl pointer-events-none"><Banknote className="text-red-500" size={24} /></div>
-          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Расход</span>
-        </button>
-        <button 
-          type="button"
-          onClick={() => !isLocked && setModal('taxi')} 
-          disabled={isLocked}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
-        >
-          <div className="bg-blue-100 p-2 rounded-xl pointer-events-none"><Car className="text-blue-500" size={24} /></div>
-          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Такси</span>
-        </button>
-        <button 
-          type="button"
-          onClick={() => !isLocked && setModal('salary')} 
-          disabled={isLocked}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
-        >
-          <div className="bg-purple-100 p-2 rounded-xl pointer-events-none"><WalletCards className="text-purple-500" size={24} /></div>
-          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Зарплаты</span>
-        </button>
-        <button 
-          type="button"
-          onClick={() => !isLocked && setModal('staff')} 
-          disabled={isLocked}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
-        >
-          <div className="bg-green-100 p-2 rounded-xl pointer-events-none"><UserCheck className="text-green-500" size={24} /></div>
-          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Стафф</span>
-        </button>
-        <button 
-          type="button"
-          onClick={() => !isLocked && setModal('safe')} 
-          disabled={isLocked}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center gap-2 active:scale-95 transition-all cursor-pointer select-none"
-        >
-          <div className="bg-emerald-100 p-2 rounded-xl pointer-events-none"><ShieldCheck className="text-emerald-500" size={24} /></div>
-          <span className="text-[10px] font-black uppercase tracking-tighter pointer-events-none">Сейф</span>
-        </button>
-      </div>
-
-      {/* Unified Lists (Expenses, Operations & Staff) */}
-      <div className="space-y-6">
-        {/* Safe Transactions List */}
-        {(data.safe_transactions?.length || 0) > 0 && (
+        
+        <div className="space-y-6">
           <div className="space-y-2">
-            <div className="flex justify-between items-center px-3">
-              <div className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Транзакции сейфа</div>
-              <div className="text-[10px] font-black uppercase text-emerald-600 tracking-widest bg-emerald-50 px-2 py-0.5 rounded-full">
-                Итого: {data.safe_transactions.reduce((sum, t) => sum + t.amount, 0).toLocaleString()} ₽
-              </div>
+            <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Сотрудники</label>
+            <input 
+              placeholder="Имена через запятую" 
+              className="w-full p-5 bg-gray-50/50 rounded-2xl text-sm border-none focus:ring-2 focus:ring-gray-100 font-bold placeholder:text-gray-200 transition-all"
+              defaultValue={data.shift?.staff.join(', ')}
+              disabled={isLocked}
+              onBlur={e => handleSaveShift({ staff: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
+              <input 
+                type="number" 
+                inputMode="decimal"
+                placeholder="0"
+                className="w-full p-5 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                disabled={isLocked}
+                value={data.financials?.revenue_cash || ''} 
+                onChange={e => handleRevenueChange('cash', e.target.value)}
+                onBlur={e => handleSaveFin({ revenue_cash: parseFloat(e.target.value) || 0 })} 
+              />
             </div>
             <div className="space-y-2">
-              {data.safe_transactions.map(t => (
-                <div key={t.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-gray-900">{t.note}</div>
-                    <div className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-tighter">
-                      {t.time}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`text-sm font-black ${t.amount >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {t.amount >= 0 ? '+' : ''}{t.amount.toLocaleString()} ₽
-                    </div>
-                    {!isLocked && (
-                      <button onClick={() => handleDelete('safe_transactions', t.id)} className="bg-red-50 text-red-400 p-2.5 rounded-xl active:scale-90 transition-all"><Trash2 size={16}/></button>
-                    )}
-                  </div>
-                </div>
-              ))}
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
+              <input 
+                type="number" 
+                inputMode="decimal"
+                placeholder="0"
+                className="w-full p-5 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                disabled={isLocked}
+                value={data.financials?.revenue_card || ''} 
+                onChange={e => handleRevenueChange('card', e.target.value)}
+                onBlur={e => handleSaveFin({ revenue_card: parseFloat(e.target.value) || 0 })} 
+              />
             </div>
           </div>
-        )}
+        </div>
+      </section>
+
+      {/* Block: Панель управления */}
+      <section className="space-y-4">
+        <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] px-1 opacity-30">Панель управления</div>
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { id: 'staff_hookah', label: 'Кальян', icon: <Coffee size={24} />, color: 'text-gray-900' },
+            { id: 'expense', label: 'Расход', icon: <Banknote size={24} />, color: 'text-gray-900' },
+            { id: 'taxi', label: 'Такси', icon: <Car size={24} />, color: 'text-gray-900' },
+            { id: 'salary', label: 'Зарплаты', icon: <WalletCards size={24} />, color: 'text-gray-900' },
+            { id: 'staff', label: 'Стафф', icon: <UserCheck size={24} />, color: 'text-gray-900' },
+            { id: 'safe', label: 'Сейф', icon: <ShieldCheck size={24} />, color: 'text-gray-900' },
+          ].map((btn) => (
+            <button 
+              key={btn.id}
+              type="button"
+              onClick={() => !isLocked && setModal(btn.id as any)} 
+              disabled={isLocked}
+              className={`bg-white aspect-square rounded-[2rem] shadow-[0_10px_25px_rgba(0,0,0,0.02)] border border-gray-50 flex flex-col items-center justify-center gap-3 active:scale-95 transition-all cursor-pointer select-none ${isLocked ? 'opacity-50' : 'hover:border-gray-100'}`}
+            >
+              <div className={`${btn.color} opacity-90`}>{btn.icon}</div>
+              <span className="text-[10px] font-black uppercase tracking-tighter text-gray-900">{btn.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Block: Чек дня */}
+      <section className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-10 border border-gray-50">
+        <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] opacity-30">Чек дня</div>
 
         {/* Expenses List */}
-        {data.expenses.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Расходы за день</div>
-            <div className="space-y-2">
-              {data.expenses.map(exp => (
-                <div key={exp.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-bold text-sm text-gray-900">{exp.title}</div>
-                      <div className="text-[8px] px-2 py-0.5 bg-gray-100 rounded-full text-gray-500 font-black uppercase tracking-tighter">
-                        {exp.payment_source === 'bank' ? 'Р/С' : 'Нал'}
+        <div className="space-y-6">
+          <div className="text-[10px] font-black uppercase text-gray-900 tracking-widest px-1 opacity-20">Расходы за день</div>
+          <div className="space-y-4">
+            {data.expenses.length > 0 ? data.expenses.map(exp => (
+              <div key={exp.id} className="flex justify-between items-center group px-1">
+                <div className="flex-1">
+                  <div className="font-bold text-sm text-gray-900">{exp.title}</div>
+                  <div className="text-[10px] font-bold text-gray-300 mt-0.5 uppercase tracking-widest">
+                    {exp.time} • {exp.payment_source === 'bank' ? 'Р/С' : 'Нал'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="text-sm font-black text-gray-900">-{exp.amount.toLocaleString()} ₽</div>
+                  {!isLocked && (
+                    <button onClick={() => handleDelete('expenses', exp.id)} className="text-gray-100 hover:text-red-400 transition-colors"><Trash2 size={14}/></button>
+                  )}
+                </div>
+              </div>
+            )) : (
+              <div className="text-center py-4 text-[10px] font-bold text-gray-200 uppercase tracking-widest italic">Нет расходов</div>
+            )}
+          </div>
+        </div>
+
+        {/* Operations & Data List */}
+        <div className="space-y-6">
+          <div className="text-[10px] font-black uppercase text-gray-900 tracking-widest px-1 opacity-20">Операции и данные</div>
+          <div className="space-y-4">
+            {[...data.operations, ...data.discounts].length > 0 ? (
+              <>
+                {data.operations.map(op => (
+                  <div key={op.id} className="flex justify-between items-center px-1">
+                    <div className="flex-1">
+                      <div className="font-bold text-sm text-gray-900">{op.type === 'staff_hookah' ? '💨 Кальян' : '🚕 Такси'}</div>
+                      <div className="text-[10px] font-bold text-gray-300 mt-0.5 uppercase tracking-widest">
+                        {op.type === 'staff_hookah' ? `${op.count} шт` : `${op.person} • ${op.amount} ₽`}
                       </div>
                     </div>
-                    <div className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-tighter">
-                      {exp.time} • {exp.type === 'fixed' ? 'Постоянный' : 'Переменный'}
+                    <div className="flex items-center gap-6">
+                      <div className="text-sm font-black text-gray-900">
+                        {op.type === 'taxi' ? `${op.amount.toLocaleString()} ₽` : `${op.count} шт`}
+                      </div>
+                      {!isLocked && (
+                        <button onClick={() => handleDelete('operations', op.id)} className="text-gray-100 hover:text-red-400 transition-colors"><Trash2 size={14}/></button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-black text-red-500">-{exp.amount.toLocaleString()} ₽</div>
-                    {!isLocked && (
-                      <button onClick={() => handleDelete('expenses', exp.id)} className="bg-red-50 text-red-400 p-2.5 rounded-xl active:scale-90 transition-all"><Trash2 size={16}/></button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Operations List */}
-        {data.operations.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Операции и данные</div>
-            <div className="space-y-2">
-              {data.operations.map(op => (
-                <div key={op.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-gray-900">{op.type === 'staff_hookah' ? '💨 Кальян' : '🚕 Такси'}</div>
-                    <div className="text-xs font-bold text-gray-400">
-                      {op.type === 'staff_hookah' 
-                        ? `${op.count} шт` 
-                        : `${op.person} • ${op.amount} ₽`}
+                ))}
+                {data.discounts.map(d => (
+                  <div key={d.id} className="flex justify-between items-center px-1">
+                    <div className="flex-1">
+                      <div className="font-bold text-sm text-gray-900">🧑‍🍳 {d.person}</div>
+                      <div className="text-[10px] font-bold text-gray-300 mt-0.5 uppercase tracking-widest">Стафф • {d.count} шт</div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-sm font-black text-gray-900">{d.count} шт</div>
+                      {!isLocked && (
+                        <button onClick={() => handleDelete('discounts', d.id)} className="text-gray-100 hover:text-red-400 transition-colors"><Trash2 size={14}/></button>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {op.type === 'taxi' && (
-                      <div className="text-sm font-black text-blue-500">{op.amount.toLocaleString()} ₽</div>
-                    )}
-                    {op.type === 'staff_hookah' && (
-                      <div className="text-sm font-black text-blue-500">{op.count} шт</div>
-                    )}
-                    {!isLocked && (
-                      <button onClick={() => handleDelete('operations', op.id)} className="bg-red-50 text-red-400 p-3 rounded-xl active:scale-90 transition-all"><Trash2 size={18}/></button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </>
+            ) : (
+              <div className="text-center py-4 text-[10px] font-bold text-gray-200 uppercase tracking-widest italic">Нет операций</div>
+            )}
+          </div>
+        </div>
+
+        {/* Financial Summary */}
+        <div className="pt-10 space-y-6 border-t border-gray-50">
+          <div className="grid grid-cols-2 gap-8">
+            <div className="space-y-1">
+              <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Выручка</div>
+              <div className="text-lg font-black text-gray-900">{(data.financials?.total_revenue || 0).toLocaleString()} ₽</div>
+            </div>
+            <div className="space-y-1 text-right">
+              <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Расходы</div>
+              <div className="text-lg font-black text-red-500">{(data.expenses.reduce((sum, e) => sum + e.amount, 0)).toLocaleString()} ₽</div>
             </div>
           </div>
-        )}
-
-        {/* Staff List (stored in discounts) */}
-        {data.discounts.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-[10px] font-black uppercase text-gray-400 px-3 tracking-widest">Стафф (инфо)</div>
-            <div className="space-y-2">
-              {data.discounts.map(d => (
-                <div key={d.id} className="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
-                  <div className="flex-1">
-                    <div className="font-bold text-sm text-gray-900">🧑‍🍳 {d.person}</div>
-                    <div className="text-xs font-bold text-gray-400">{d.count} шт</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-black text-blue-500">{d.count} шт</div>
-                    {!isLocked && (
-                      <button onClick={() => handleDelete('discounts', d.id)} className="bg-red-50 text-red-400 p-3 rounded-xl active:scale-90 transition-all"><Trash2 size={18}/></button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+          
+          <div className="bg-gray-900 rounded-3xl p-6 flex justify-between items-center">
+            <div className="text-[10px] font-black text-white/40 uppercase tracking-widest">Чистая прибыль</div>
+            <div className="text-2xl font-black text-white">{(data.financials?.profit || 0).toLocaleString()} ₽</div>
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
-      {/* Large Bottom Save/Edit Button */}
-      <div className="px-1 pt-4">
-        {isLocked ? (
-          <button 
-            onClick={() => setModal('password')}
-            className="w-full p-6 bg-amber-500 text-white rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-amber-100 active:scale-95 transition-all"
-          >
-            <Unlock size={24} /> Изменить данные
-          </button>
-        ) : (
+      {/* Optimized Floating Bottom Bar */}
+      {!isLocked && (
+        <div className="fixed bottom-6 left-4 right-4 z-50 animate-in slide-in-from-bottom-10 duration-500">
           <button 
             onClick={() => handleSaveFin()}
             disabled={saveStatus === 'saving'}
-            className={`w-full p-6 rounded-[2rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all ${
-              saveStatus === 'saved' ? 'bg-green-600 text-white' : 'bg-blue-600 text-white shadow-blue-200'
+            className={`w-full p-6 rounded-[2.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-[0_20px_40px_rgba(0,0,0,0.1)] active:scale-95 transition-all ${
+              saveStatus === 'saved' ? 'bg-emerald-500 text-white' : 'bg-gray-900 text-white'
             }`}
           >
-            {saveStatus === 'saving' ? <Loader2 className="animate-spin" size={24} /> : <Save size={24} />}
-            {saveStatus === 'saving' ? 'Сохранение...' : saveStatus === 'saved' ? 'Успешно сохранено!' : 'Сохранить данные'}
+            {saveStatus === 'saving' ? <Loader2 className="animate-spin" size="24" /> : saveStatus === 'saved' ? <ShieldCheck size={24} /> : <Save size={24} />}
+            {saveStatus === 'saving' ? 'Сохранение...' : saveStatus === 'saved' ? 'Сохранено' : 'Подтвердить смену'}
           </button>
-        )}
-      </div>
-
-      {/* Floating Sticky Profit Footer */}
-      <div className="fixed bottom-20 left-4 right-4 bg-gray-900 text-white p-5 rounded-[2rem] flex justify-between items-center shadow-2xl z-40 border border-white/10 ring-4 ring-black/5">
-        <div>
-          <div className="text-[10px] uppercase font-black opacity-50 tracking-tighter">Чистая прибыль</div>
-          <div className="text-2xl font-black">{(data.financials?.profit || 0).toLocaleString()} ₽</div>
         </div>
-        <div className="text-right">
-          <div className="text-[10px] uppercase font-black opacity-50 tracking-tighter">Всего расходов</div>
-          <div className="text-lg font-bold text-red-400">
-            -{(
-              data.expenses.reduce((sum, e) => sum + e.amount, 0)
-            ).toLocaleString()} ₽
+      )}
+
+      {/* Lock Indicator for viewing */}
+      {isLocked && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="bg-white/80 backdrop-blur-md px-6 py-3 rounded-full border border-gray-100 shadow-xl flex items-center gap-2">
+            <Lock size={14} className="text-amber-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Только чтение</span>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

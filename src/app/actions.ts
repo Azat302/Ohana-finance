@@ -312,6 +312,30 @@ export async function addSafeTransactionAction(t: SafeTransaction) {
   }
 }
 
+export async function deleteDayAction(date: string) {
+  try {
+    await db.deleteFullDay(date);
+    
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date,
+      action_type: 'DAY_DELETE',
+      description: `Удалены все данные за ${date}`,
+      details: `Полная очистка дня администратором`,
+      ip,
+      user_agent: userAgent
+    });
+
+    revalidatePath(`/day/${date}`);
+    revalidatePath('/hub');
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('deleteDayAction error:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function deleteItemAction(sheetName: string, id: string, date: string) {
   try {
     const { ip, userAgent } = await getMetadata();
@@ -356,16 +380,15 @@ export async function deleteItemAction(sheetName: string, id: string, date: stri
     await db.deleteRowById(sheetName, id, date);
     
     await db.addActionLog({
-      date: date || format(new Date(), 'yyyy-MM-dd'),
-      action_type: 'DELETE',
+      date,
+      action_type: 'ITEM_DELETE',
       description: `Удалена запись из ${sheetName}`,
       details: `ID: ${id}`,
       ip,
       user_agent: userAgent
     });
 
-    if (date) revalidatePath(`/day/${date}`);
-    revalidatePath('/recurring');
+    revalidatePath(`/day/${date}`);
     revalidatePath('/');
     return { success: true };
   } catch (error) {

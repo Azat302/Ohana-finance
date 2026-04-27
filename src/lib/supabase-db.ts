@@ -182,6 +182,20 @@ export async function getRecurringExpenses(): Promise<RecurringExpense[]> {
   return data || [];
 }
 
+export async function deleteFullDay(date: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  
+  await Promise.all([
+    supabase.from('shifts').delete().eq('date', date),
+    supabase.from('financials').delete().eq('date', date),
+    supabase.from('expenses').delete().eq('date', date),
+    supabase.from('operations').delete().eq('date', date),
+    supabase.from('discounts').delete().eq('date', date),
+    supabase.from('safe_transactions').delete().eq('date', date)
+  ]);
+}
+
 export async function getAllOperations(): Promise<Operation[]> {
   const supabase = getSupabase();
   if (!supabase) return [];

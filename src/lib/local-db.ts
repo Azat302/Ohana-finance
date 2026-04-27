@@ -175,3 +175,11 @@ export async function getAllOperations(): Promise<Operation[]> {
   
   return allOps.sort((a, b) => b.date.localeCompare(a.date));
 }
+
+export async function deleteFullDay(date: string) {
+  const db = await readDb();
+  if (db[date]) {
+    delete db[date];
+    await writeDb(db);
+  }
+}
