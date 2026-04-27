@@ -26,7 +26,7 @@ import RecurringExpensesList from './RecurringExpensesList';
 import { RecurringExpense, GlobalBalances, ActionLog, Expense } from '@/types';
 import { parseISO, startOfMonth, startOfWeek, format, isWithinInterval } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { saveGlobalBalancesAction, getActionLogsAction, getFullDayAction } from '@/app/actions';
+import { saveGlobalBalancesAction, getActionLogsAction, getFullDayAction, runMigrationAction } from '@/app/actions';
 
 interface Props {
   today: string;
@@ -50,6 +50,29 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   const [isLoadingSalaries, setIsLoadingSalaries] = useState(false);
   const [salaryMonth, setSalaryMonth] = useState(format(new Date(), 'yyyy-MM'));
   
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+
+  const handleMigration = async () => {
+    if (!confirm('Вы уверены, что хотите запустить перенос данных из Google Sheets в Supabase? Это может занять время.')) return;
+    
+    setIsMigrating(true);
+    setMigrationStatus('Перенос данных запущен...');
+    try {
+      const result = await runMigrationAction();
+      if (result.success) {
+        setMigrationStatus('Миграция успешно завершена!');
+        alert('Данные перенесены! Теперь не забудь поменять USE_SUPABASE=true в .env.local');
+      } else {
+        setMigrationStatus(`Ошибка: ${result.error}`);
+      }
+    } catch (err) {
+      setMigrationStatus('Произошла критическая ошибка при миграции');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const HUB_PASSWORD = '123';
 
   const loadLogs = async () => {
@@ -190,6 +213,58 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
     );
   }
 
+  // TAB RENDERING
+  if (activeTab === 'settings') {
+    return (
+      <div className="space-y-8 pb-20">
+        <button 
+          onClick={() => setActiveTab('menu')}
+          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
+        >
+          <LayoutGrid size={14} /> Назад в Хаб
+        </button>
+        
+        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 space-y-8">
+          <div>
+            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Настройки системы</h2>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Миграция и конфигурация</p>
+          </div>
+
+          <div className="p-6 bg-purple-50 rounded-[2rem] space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-purple-500 p-2 rounded-xl text-white">
+                <BarChart3 size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-gray-900 uppercase">Миграция в Supabase</h3>
+                <p className="text-[10px] font-bold text-purple-400 uppercase">Перенос данных из Google Sheets</p>
+              </div>
+            </div>
+            
+            <p className="text-xs text-gray-600 font-medium">
+              Эта функция перенесет все ваши данные из Google Таблиц в новую базу данных PostgreSQL на Supabase. 
+              Запускайте только после того, как настроите SQL и пропишете ключи в .env.local.
+            </p>
+
+            {migrationStatus && (
+              <div className={`p-3 rounded-xl text-[10px] font-black uppercase ${migrationStatus.includes('ошибка') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                {migrationStatus}
+              </div>
+            )}
+
+            <button
+              onClick={handleMigration}
+              disabled={isMigrating}
+              className="w-full bg-gray-900 text-white p-4 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {isMigrating ? <Loader2 className="animate-spin" size={18} /> : 'Запустить перенос данных'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (activeTab === 'expenses') {
     return (
       <div className="space-y-8 pb-20">
@@ -199,18 +274,7 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
         >
           <LayoutGrid size={14} /> Назад в Хаб
         </button>
-        <div className="max-w-xl mx-auto space-y-12">
-          <section>
-            <ExpensesManager initialDate={today} />
-          </section>
-          <section>
-            <div className="px-2 mb-6">
-              <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Настройка постоянных трат</h2>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Изменение регулярных платежей</p>
-            </div>
-            <RecurringExpensesList initialExpenses={recurringExpenses} />
-          </section>
-        </div>
+        <ExpensesManager recurringExpenses={recurringExpenses} today={today} />
       </div>
     );
   }
@@ -392,7 +456,14 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
     );
   }
 
+  // Fallback for development tabs
   if (activeTab !== 'menu') {
+    const tabNames: {[key: string]: string} = {
+      analytics: 'Аналитика',
+      calendar: 'Календарь',
+      agent: 'Чат с агентом'
+    };
+
     return (
       <div className="space-y-8 pb-20">
         <button 
@@ -403,7 +474,7 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
         </button>
         <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 text-center space-y-4">
           <div className="text-4xl">🏗️</div>
-          <h2 className="text-xl font-black text-gray-900">Раздел в разработке</h2>
+          <h2 className="text-xl font-black text-gray-900">Раздел {tabNames[activeTab] || activeTab} в разработке</h2>
           <p className="text-gray-400 text-sm font-medium">Мы скоро добавим сюда функционал</p>
         </div>
       </div>
@@ -411,12 +482,12 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   }
 
   const hubItems = [
+    { id: 'settings', name: 'Настройки БАЗЫ', icon: Settings, color: 'text-red-500', bg: 'bg-red-50' },
     { id: 'expenses', name: 'Расходы', icon: Banknote, color: 'text-orange-500', bg: 'bg-orange-50' },
     { id: 'salaries', name: 'Зарплаты', icon: Users, color: 'text-purple-500', bg: 'bg-purple-50' },
     { id: 'analytics', name: 'Аналитика', icon: BarChart3, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'calendar', name: 'Календарь', icon: Calendar, color: 'text-green-500', bg: 'bg-green-50' },
     { id: 'agent', name: 'Чат с агентом', icon: MessageSquare, color: 'text-pink-500', bg: 'bg-pink-50' },
-    { id: 'settings', name: 'Настройки', icon: Settings, color: 'text-gray-500', bg: 'bg-gray-50' },
   ];
 
   return (
