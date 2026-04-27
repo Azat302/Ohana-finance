@@ -333,14 +333,19 @@ export async function getActionLogs(date?: string): Promise<ActionLog[]> {
 export async function getExpensesByMonth(month: string): Promise<Expense[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
+  
+  // Создаем диапазон дат для месяца: от 01 числа текущего месяца до 01 числа следующего месяца (исключительно)
   const startDate = `${month}-01`;
-  const endDate = `${month}-31`; // Supabase eq/gte/lte works with strings
+  const [year, monthNum] = month.split('-').map(Number);
+  const nextMonth = monthNum === 12 ? 1 : monthNum + 1;
+  const nextYear = monthNum === 12 ? year + 1 : year;
+  const endDate = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 
   const { data, error } = await supabase
     .from('expenses')
     .select('*')
     .gte('date', startDate)
-    .lte('date', endDate)
+    .lt('date', endDate)
     .order('date', { ascending: false });
 
   if (error) throw error;

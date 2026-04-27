@@ -200,6 +200,7 @@ export async function addExpenseAction(expense: Expense) {
     });
 
     revalidatePath(`/day/${expense.date}`);
+    revalidatePath('/hub');
     revalidatePath('/');
     return { success: true };
   } catch (error) {

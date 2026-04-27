@@ -66,10 +66,13 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
     setIsLoadingSalaries(true);
     try {
       const results = await getExpensesByMonthAction(salaryMonth);
-      const staffExpenses = results.filter((e: Expense) => 
-        e.title.toLowerCase().startsWith('зп ') || 
-        e.title.toLowerCase().startsWith('премия ')
-      );
+      const staffExpenses = (results || []).filter((e: Expense) => {
+        if (!e.title) return false;
+        const title = e.title.toLowerCase().trim();
+        return title.startsWith('зп') || 
+               title.startsWith('премия') || 
+               title.includes('зарплата');
+      });
       setSalaries(staffExpenses);
     } catch (err: any) {
       console.error('Error loading salaries:', err);
