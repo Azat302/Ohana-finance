@@ -396,7 +396,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
           <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={() => !isSaving && setModal(null)} />
           <div className="relative bg-white w-full max-w-sm rounded-[2rem] p-8 shadow-2xl space-y-6 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center">
-              <h3 className="text-2xl font-black uppercase tracking-tighter">
+              <h3 className="text-xl font-black uppercase tracking-tighter">
                 {modal === 'staff_hookah' ? '💨 Кальян' : modal === 'taxi' ? '🚕 Такси' : modal === 'staff' ? '🧑‍🍳 Стафф' : modal === 'expense' ? '💸 Расход' : modal === 'salary' ? '👤 Сотрудник' : modal === 'salary_type' ? '💰 Тип' : modal === 'salary_amount' ? '💸 Сумма' : modal === 'safe' ? '🛡️ Сейф' : modal === 'delete_confirm' ? '🗑️ Удаление' : '🔒 Доступ'}
               </h3>
               <button type="button" onClick={() => ['salary', 'salary_type', 'salary_amount'].includes(modal || '') ? handleSalaryClose() : setModal(null)} className="p-2 text-gray-400"><X /></button>
@@ -415,11 +415,11 @@ export default function OperationalPanel({ initialData, date }: Props) {
                     <Trash2 size={32} />
                   </div>
                   <div className="space-y-1 text-center">
-                    <p className="text-xs font-bold text-gray-500 mb-4">Для полного удаления данных за день введите сложный пароль хаба</p>
+                    <p className="text-[10px] font-bold text-gray-500 mb-4">Для полного удаления данных за день введите сложный пароль хаба</p>
                     <input 
                       type="password" 
                       placeholder="••••••••" 
-                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center tracking-[0.2em]" 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center tracking-[0.2em]" 
                       value={deletePassword}
                       onChange={e => setDeletePassword(e.target.value)}
                       required 
@@ -433,24 +433,24 @@ export default function OperationalPanel({ initialData, date }: Props) {
                     <ShieldCheck size={32} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
-                    <p className="text-[10px] text-gray-400 mb-1 ml-1 italic">Положительная (+), Отрицательная (-)</p>
+                    <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                    <p className="text-[8px] text-gray-400 mb-1 ml-1 italic">Положительная (+), Отрицательная (-)</p>
                     <input 
                       name="amount" 
                       type="number" 
                       step="any"
                       placeholder="0" 
-                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center" 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center" 
                       required 
                       autoFocus 
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Комментарий (необяз.)</label>
+                    <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Комментарий (необяз.)</label>
                     <input 
                       name="note" 
                       placeholder="Например: Внесение из кассы" 
-                      className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-bold" 
+                      className="w-full p-4 bg-gray-50 rounded-2xl border-none text-xs font-bold" 
                     />
                   </div>
                 </div>
@@ -460,11 +460,11 @@ export default function OperationalPanel({ initialData, date }: Props) {
                     <Lock size={32} />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Введите пароль</label>
+                    <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Введите пароль</label>
                     <input 
                       type="password" 
                       placeholder="••••" 
-                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center tracking-[0.5em]" 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center tracking-[0.5em]" 
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       required 
@@ -474,14 +474,14 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 </div>
               ) : modal === 'salary' ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-500 font-medium text-center">Выберите сотрудника</p>
+                  <p className="text-xs text-gray-500 font-medium text-center">Выберите сотрудника</p>
                   <div className="grid grid-cols-2 gap-2">
                     {salaryPeople.map(person => (
                       <button
                         key={person}
                         type="button"
                         onClick={() => handlePersonSelect(person)}
-                        className="p-4 bg-gray-50 rounded-2xl text-sm font-bold hover:bg-purple-50 hover:text-purple-600 transition-colors active:scale-95"
+                        className="p-4 bg-gray-50 rounded-2xl text-xs font-bold hover:bg-purple-50 hover:text-purple-600 transition-colors active:scale-95"
                       >
                         {person}
                       </button>
@@ -490,7 +490,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 </div>
               ) : modal === 'salary_type' ? (
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-500 font-medium text-center">
+                  <p className="text-xs text-gray-500 font-medium text-center">
                     {salaryPerson}
                   </p>
                   <div className="grid grid-cols-2 gap-3">
@@ -500,7 +500,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
                       className="p-6 bg-green-50 rounded-2xl flex flex-col items-center gap-2 active:scale-95 transition-all"
                     >
                       <Wallet size={32} className="text-green-500" />
-                      <span className="text-sm font-black uppercase">Зарплата</span>
+                      <span className="text-xs font-black uppercase">Зарплата</span>
                     </button>
                     <button
                       type="button"
@@ -508,43 +508,43 @@ export default function OperationalPanel({ initialData, date }: Props) {
                       className="p-6 bg-purple-50 rounded-2xl flex flex-col items-center gap-2 active:scale-95 transition-all"
                     >
                       <Percent size={32} className="text-purple-500" />
-                      <span className="text-sm font-black uppercase">Премия</span>
+                      <span className="text-xs font-black uppercase">Премия</span>
                     </button>
                   </div>
                 </div>
               ) : modal === 'salary_amount' ? (
                 <div className="space-y-4">
                   <div className="text-center">
-                    <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest mb-1">{salaryType === 'salary' ? 'Сумма зарплаты' : 'Сумма премии'}</p>
-                    <p className="text-xl font-black text-gray-900">{salaryPerson}</p>
+                    <p className="text-[8px] uppercase font-black text-gray-400 tracking-widest mb-1">{salaryType === 'salary' ? 'Сумма зарплаты' : 'Сумма премии'}</p>
+                    <p className="text-lg font-black text-gray-900">{salaryPerson}</p>
                   </div>
                   <div className="space-y-4">
                     <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Источник выплаты</label>
+                      <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Источник выплаты</label>
                       <div className="grid grid-cols-2 gap-2">
                         <button
                           type="button"
                           onClick={() => setSalaryPaymentSource('cash')}
-                          className={`p-4 rounded-2xl text-xs font-black uppercase transition-all ${salaryPaymentSource === 'cash' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-400'}`}
+                          className={`p-4 rounded-2xl text-[10px] font-black uppercase transition-all ${salaryPaymentSource === 'cash' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-400'}`}
                         >
                           Наличные
                         </button>
                         <button
                           type="button"
                           onClick={() => setSalaryPaymentSource('bank')}
-                          className={`p-4 rounded-2xl text-xs font-black uppercase transition-all ${salaryPaymentSource === 'bank' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-400'}`}
+                          className={`p-4 rounded-2xl text-[10px] font-black uppercase transition-all ${salaryPaymentSource === 'bank' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-400'}`}
                         >
                           Карта (Р/С)
                         </button>
                       </div>
                     </div>
                     <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                      <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
                       <input 
                         name="amount" 
                         type="number" 
                         placeholder="0" 
-                        className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center" 
+                        className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center" 
                         required 
                         autoFocus 
                       />
@@ -554,14 +554,14 @@ export default function OperationalPanel({ initialData, date }: Props) {
               ) : (
                 <>
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">
+                    <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">
                       {modal === 'staff_hookah' ? 'Количество кальянов' : modal === 'taxi' ? 'Сумма такси (₽)' : modal === 'staff' ? 'Количество' : 'Название расхода'}
                     </label>
                     <input 
                       name={modal === 'expense' ? 'title' : modal === 'staff_hookah' || modal === 'staff' ? 'count' : 'amount'} 
                       type={modal === 'expense' ? 'text' : 'number'} 
                       placeholder={modal === 'expense' ? 'Напр: Хозтовары' : '0'} 
-                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center" 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center" 
                       required 
                       autoFocus 
                     />
@@ -570,20 +570,20 @@ export default function OperationalPanel({ initialData, date }: Props) {
                     <>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
-                          <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
+                          <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                          <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-base font-bold" required />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Тип</label>
-                          <select name="type" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-bold appearance-none">
+                          <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Тип</label>
+                          <select name="type" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-xs font-bold appearance-none">
                             <option value="variable">Переменный</option>
                             <option value="fixed">Постоянный</option>
                           </select>
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Источник</label>
-                        <select name="payment_source" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-bold appearance-none">
+                        <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Источник</label>
+                        <select name="payment_source" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-xs font-bold appearance-none">
                           <option value="cash">Наличные</option>
                           <option value="bank">Карта (Р/С)</option>
                         </select>
@@ -593,8 +593,8 @@ export default function OperationalPanel({ initialData, date }: Props) {
                   {modal === 'safe_manual' && (
                     <>
                       <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма в сейфе (₽)</label>
-                        <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
+                        <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Сумма в сейфе (₽)</label>
+                        <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-base font-bold" required />
                       </div>
                     </>
                   )}
@@ -605,7 +605,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
                   )}
                 </>
               )}
-            {!['salary', 'salary_type', 'salary_amount'].includes(modal || '') && (
+            {!['salary', 'salary_type'].includes(modal || '') && (
               <button 
                 type="submit" 
                 disabled={isSaving} 
@@ -653,19 +653,12 @@ export default function OperationalPanel({ initialData, date }: Props) {
       <div className="px-4 space-y-6 pt-2">
         {/* Block: Персонал и касса */}
         <section className="bg-white rounded-[2.5rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-5 relative overflow-hidden border border-gray-50">
-          <div className="flex justify-between items-center">
-            <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] opacity-30">Персонал и касса</div>
-            <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">
-              {format(parseISO(date), 'dd MMMM', { locale: ru })}
-            </div>
-          </div>
-          
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Сотрудники</label>
+              <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Сотрудники</label>
               <input 
                 placeholder="Имена через запятую" 
-                className="w-full p-4 bg-gray-50/50 rounded-2xl text-sm border-none focus:ring-2 focus:ring-gray-100 font-bold placeholder:text-gray-200 transition-all"
+                className="w-full p-4 bg-gray-50/50 rounded-2xl text-[13px] border-none focus:ring-2 focus:ring-gray-100 font-bold placeholder:text-gray-200 transition-all"
                 defaultValue={data.shift?.staff.join(', ')}
                 disabled={isLocked}
                 onBlur={e => handleSaveShift({ staff: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
@@ -674,12 +667,12 @@ export default function OperationalPanel({ initialData, date }: Props) {
             
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
+                <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
                 <input 
                   type="number" 
                   inputMode="decimal"
-                  placeholder="0"
-                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                  placeholder="0" 
+                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-base border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
                   disabled={isLocked}
                   value={data.financials?.revenue_cash || ''} 
                   onChange={e => handleRevenueChange('cash', e.target.value)}
@@ -687,12 +680,12 @@ export default function OperationalPanel({ initialData, date }: Props) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
+                <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
                 <input 
                   type="number" 
                   inputMode="decimal"
-                  placeholder="0"
-                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                  placeholder="0" 
+                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-base border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
                   disabled={isLocked}
                   value={data.financials?.revenue_card || ''} 
                   onChange={e => handleRevenueChange('card', e.target.value)}

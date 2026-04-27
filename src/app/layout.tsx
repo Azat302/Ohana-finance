@@ -46,7 +46,7 @@ export default async function RootLayout({
   return (
     <html lang="ru">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 pb-20 md:pb-0 md:pt-16`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 text-gray-900 pb-28 md:pb-0 md:pt-16`}
       >
         <Navigation />
         <div className="max-w-6xl mx-auto px-4 md:px-8">

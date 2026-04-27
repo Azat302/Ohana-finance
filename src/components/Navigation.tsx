@@ -18,8 +18,8 @@ export default function Navigation() {
 
   return (
     <>
-      {/* Bottom Nav for Mobile */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 flex justify-around items-center h-16 md:hidden z-50">
+      {/* Bottom Nav for Mobile - Lifted & Floating */}
+      <nav className="fixed bottom-6 left-4 right-4 bg-white/80 backdrop-blur-md border border-gray-100 flex justify-around items-center h-16 md:hidden z-50 rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href || (item.href.startsWith('/day/') && pathname.startsWith('/day/'));
