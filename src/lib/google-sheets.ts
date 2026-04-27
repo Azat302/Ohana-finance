@@ -268,6 +268,34 @@ export const getActionLogs = cache(async (date?: string): Promise<ActionLog[]> =
   }
 });
 
+export async function getExpensesByMonth(month: string): Promise<Expense[]> {
+  try {
+    const sheets = await getSheetsClient();
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'expenses!A:G',
+    });
+    const rows = response.data.values || [];
+    if (rows.length <= 1) return [];
+    
+    return rows.slice(1)
+      .filter(r => r[1] && r[1].startsWith(month))
+      .map(r => ({
+        id: r[0],
+        date: r[1],
+        time: r[2],
+        title: r[3],
+        amount: parseFloat(r[4]) || 0,
+        type: r[5] as any,
+        payment_source: r[6] as any,
+        payment_type: r[6] as any, // Added to fix linter error
+      }));
+  } catch (error: any) {
+    console.error('getExpensesByMonth error:', error.message);
+    return [];
+  }
+}
+
 // --- Writing ---
 
 export async function saveShift(shift: Shift) {

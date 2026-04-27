@@ -444,11 +444,20 @@ export async function saveGlobalBalancesAction(balances: Partial<GlobalBalances>
   }
 }
 
-export async function getActionLogsAction(date?: string) {
+export async function getActionLogAction(date?: string) {
   try {
     return await db.getActionLogs(date);
   } catch (error) {
-    console.error('getActionLogsAction error:', error);
+    console.error('getActionLogAction error:', error);
+    throw error;
+  }
+}
+
+export async function getExpensesByMonthAction(month: string) {
+  try {
+    return await db.getExpensesByMonth(month);
+  } catch (error) {
+    console.error('getExpensesByMonthAction error:', error);
     throw error;
   }
 }

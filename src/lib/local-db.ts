@@ -148,3 +148,16 @@ export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'>) {
   db.action_logs.push(newLog);
   await writeDb(db);
 }
+
+export async function getExpensesByMonth(month: string): Promise<Expense[]> {
+  const db = await readDb();
+  const allExpenses: Expense[] = [];
+  
+  Object.keys(db).forEach(date => {
+    if (date.startsWith(month) && db[date].expenses) {
+      allExpenses.push(...db[date].expenses);
+    }
+  });
+  
+  return allExpenses.sort((a, b) => b.date.localeCompare(a.date));
+}

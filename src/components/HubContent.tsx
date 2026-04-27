@@ -13,25 +13,35 @@ import {
   Settings,
   ArrowRight,
   Wallet,
-  CreditCard,
   History,
   X,
   Loader2,
   Clock,
-  CircleDollarSign,
-  User
 } from 'lucide-react';
 import ExpensesManager from './ExpensesManager';
-import RecurringExpensesList from './RecurringExpensesList';
-import { RecurringExpense, GlobalBalances, ActionLog, Expense } from '@/types';
+import { RecurringExpense, GlobalBalances, ActionLog, Expense, DashboardSummary } from '@/types';
 import { parseISO, startOfMonth, startOfWeek, format, isWithinInterval } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { saveGlobalBalancesAction, getActionLogsAction, getFullDayAction, runMigrationAction } from '@/app/actions';
+import { 
+  getActionLogAction, 
+  getExpensesByMonthAction,
+  runMigrationAction, 
+  saveShiftAction, 
+  saveFinancialsAction, 
+  addExpenseAction, 
+  addOperationAction, 
+  addDiscountAction, 
+  saveRecurringExpenseAction,
+  addSafeTransactionAction,
+  deleteItemAction,
+  getGlobalBalancesAction,
+  saveGlobalBalancesAction
+} from '@/app/actions';
 
 interface Props {
   today: string;
   recurringExpenses: RecurringExpense[];
-  summaries: any[];
+  summaries: DashboardSummary[];
   initialBalances: GlobalBalances;
 }
 
@@ -78,7 +88,7 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   const loadLogs = async () => {
     setIsLoadingLogs(true);
     try {
-      const data = await getActionLogsAction();
+      const data = await getActionLogAction();
       setLogs(data);
     } catch (error) {
       console.error('Failed to fetch logs');
@@ -90,26 +100,14 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   const loadSalaries = async () => {
     setIsLoadingSalaries(true);
     try {
-      const monthStart = startOfMonth(parseISO(`${salaryMonth}-01`));
-      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
-      
-      const daysInMonth = summaries.filter(s => {
-        const d = parseISO(s.date);
-        return isWithinInterval(d, { start: monthStart, end: monthEnd });
-      });
+      // Прямой запрос всех расходов за месяц одной операцией вместо перебора дней
+      const results = (await getExpensesByMonthAction(salaryMonth)) as Expense[];
 
-      // Параллельная загрузка данных для всех дней месяца
-      const results = await Promise.all(
-        daysInMonth.map(day => getFullDayAction(day.date))
+      const allSalaries = results.filter((e: Expense) => 
+        e.title.startsWith('ЗП ') || e.title.startsWith('Премия ')
       );
 
-      const allSalaries = results.flatMap(dayData => 
-        dayData.expenses.filter(e => 
-          e.title.startsWith('ЗП ') || e.title.startsWith('Премия ')
-        )
-      );
-
-      setSalaries(allSalaries.sort((a, b) => b.date.localeCompare(a.date)));
+      setSalaries(allSalaries.sort((a: Expense, b: Expense) => b.date.localeCompare(a.date)));
     } catch (error) {
       console.error('Error loading salaries:', error);
     } finally {
@@ -274,7 +272,7 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
         >
           <LayoutGrid size={14} /> Назад в Хаб
         </button>
-        <ExpensesManager recurringExpenses={recurringExpenses} today={today} />
+        <ExpensesManager initialDate={today} />
       </div>
     );
   }

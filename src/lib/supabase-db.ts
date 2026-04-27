@@ -267,3 +267,18 @@ export async function getActionLogs(date?: string): Promise<ActionLog[]> {
     };
   });
 }
+
+export async function getExpensesByMonth(month: string): Promise<Expense[]> {
+  const startDate = `${month}-01`;
+  const endDate = `${month}-31`; // Supabase eq/gte/lte works with strings
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
