@@ -350,6 +350,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                 placeholder="••••••••"
                 className="block w-full px-4 py-4 text-center text-2xl tracking-widest border-2 border-gray-200 rounded-2xl focus:ring-blue-500 focus:border-blue-500"
                 autoFocus
+                maxLength={20}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && password === HUB_PASSWORD) {
                     setIsAuthenticated(true);
