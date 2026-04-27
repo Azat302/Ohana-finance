@@ -398,9 +398,12 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
           
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-gray-400">Сейф:</span>
-            <span className="text-sm font-black text-blue-600">
+            <button 
+              onClick={() => setModal('safe_manual')}
+              className="text-sm font-black text-blue-600 hover:scale-105 transition-transform"
+            >
               {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()} ₽
-            </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -646,12 +649,29 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
                     </>
                   )}
                   {modal === 'safe_manual' && (
-                    <>
-                      <div className="space-y-1">
-                        <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Сумма в сейфе (₽)</label>
-                        <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-base font-bold" required />
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-blue-500 mb-4">
+                        <ShieldCheck size={32} />
                       </div>
-                    </>
+                      <div className="space-y-4">
+                        <div className="space-y-1">
+                          <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Введите пароль</label>
+                          <input 
+                            type="password" 
+                            placeholder="••••" 
+                            className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center tracking-[0.5em]" 
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            required 
+                            autoFocus 
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Новая сумма в сейфе (₽)</label>
+                          <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-base font-bold text-center" required />
+                        </div>
+                      </div>
+                    </div>
                   )}
                   {modal === 'staff' && (
                     <div className="space-y-1">
@@ -692,35 +712,40 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
-                <input 
-                  type="number" 
-                  inputMode="decimal"
-                  placeholder="0" 
-                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-base border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
-                  disabled={isLocked}
-                  value={data.financials?.revenue_cash || ''} 
-                  onChange={e => handleRevenueChange('cash', e.target.value)}
-                  onBlur={e => handleSaveFin({ revenue_cash: parseFloat(e.target.value) || 0 })} 
-                />
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
+                  <input 
+                    type="number" 
+                    inputMode="decimal"
+                    placeholder="0" 
+                    className="w-full p-4 bg-gray-50/50 rounded-2xl text-base border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                    disabled={isLocked}
+                    value={data.financials?.revenue_cash || ''} 
+                    onChange={e => handleRevenueChange('cash', e.target.value)}
+                    onBlur={e => handleSaveFin({ revenue_cash: parseFloat(e.target.value) || 0 })} 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
+                  <input 
+                    type="number" 
+                    inputMode="decimal"
+                    placeholder="0" 
+                    className="w-full p-4 bg-gray-50/50 rounded-2xl text-base border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                    disabled={isLocked}
+                    value={data.financials?.revenue_card || ''} 
+                    onChange={e => handleRevenueChange('card', e.target.value)}
+                    onBlur={e => handleSaveFin({ revenue_card: parseFloat(e.target.value) || 0 })} 
+                  />
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
-                <input 
-                  type="number" 
-                  inputMode="decimal"
-                  placeholder="0" 
-                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-base border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
-                  disabled={isLocked}
-                  value={data.financials?.revenue_card || ''} 
-                  onChange={e => handleRevenueChange('card', e.target.value)}
-                  onBlur={e => handleSaveFin({ revenue_card: parseFloat(e.target.value) || 0 })} 
-                />
+              <div className="text-center pt-2">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                  {format(parseISO(date), 'd MMMM yyyy, eeee', { locale: ru })}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
       {/* Block: Панель управления */}
       <section className="space-y-4">
