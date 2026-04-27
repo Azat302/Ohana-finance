@@ -5,18 +5,6 @@ import { Shift, Financials, Expense, Operation, RecurringExpense, Discount, Safe
 import { revalidatePath } from 'next/cache';
 import { format, subDays, parseISO } from 'date-fns';
 import { headers } from 'next/headers';
-import { migrateGoogleToSupabase } from '@/lib/migration';
-
-export async function runMigrationAction() {
-  try {
-    await migrateGoogleToSupabase();
-    revalidatePath('/');
-    return { success: true };
-  } catch (error) {
-    console.error('Migration action error:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
-  }
-}
 
 async function getMetadata() {
   try {

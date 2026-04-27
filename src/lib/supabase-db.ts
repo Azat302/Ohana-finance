@@ -13,12 +13,26 @@ import {
   DashboardSummary
 } from '../types';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseServiceKey);
+let cachedSupabase: any = null;
+
+export function getSupabase() {
+  if (cachedSupabase) return cachedSupabase;
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+  
+  cachedSupabase = createClient(supabaseUrl, supabaseServiceKey);
+  return cachedSupabase;
+}
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.warn('Supabase credentials missing. Database operations will return empty data.');
+}
 
 export async function getDashboardSummary(): Promise<DashboardSummary[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   const { data: financials, error: finError } = await supabase
     .from('financials')
     .select('date, total_revenue, profit')
@@ -33,12 +47,12 @@ export async function getDashboardSummary(): Promise<DashboardSummary[]> {
   if (expError) throw expError;
 
   // Group expenses by date
-  const expensesByDate = (expenses || []).reduce((acc: Record<string, number>, curr) => {
+  const expensesByDate = (expenses || []).reduce((acc: Record<string, number>, curr: any) => {
     acc[curr.date] = (acc[curr.date] || 0) + Number(curr.amount);
     return acc;
   }, {});
 
-  return (financials || []).map(item => ({
+  return (financials || []).map((item: any) => ({
     date: item.date,
     total_revenue: Number(item.total_revenue),
     total_expenses: expensesByDate[item.date] || 0,
@@ -47,6 +61,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary[]> {
 }
 
 export async function getFullDay(date: string): Promise<FullDayData> {
+  const supabase = getSupabase();
+  if (!supabase) return { date, shift: null, financials: null, expenses: [], operations: [], discounts: [], safe_transactions: [] };
   const [
     { data: shift },
     { data: financials },
@@ -75,6 +91,8 @@ export async function getFullDay(date: string): Promise<FullDayData> {
 }
 
 export async function saveShift(shift: Shift): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('shifts')
     .upsert({
@@ -88,6 +106,8 @@ export async function saveShift(shift: Shift): Promise<void> {
 }
 
 export async function saveFinancials(financials: Financials): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('financials')
     .upsert(financials);
@@ -95,6 +115,8 @@ export async function saveFinancials(financials: Financials): Promise<void> {
 }
 
 export async function addExpense(expense: Expense): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('expenses')
     .upsert(expense);
@@ -102,6 +124,8 @@ export async function addExpense(expense: Expense): Promise<void> {
 }
 
 export async function deleteExpense(id: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('expenses')
     .delete()
@@ -110,6 +134,8 @@ export async function deleteExpense(id: string): Promise<void> {
 }
 
 export async function addOperation(operation: Operation): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('operations')
     .upsert(operation);
@@ -117,6 +143,8 @@ export async function addOperation(operation: Operation): Promise<void> {
 }
 
 export async function deleteOperation(id: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('operations')
     .delete()
@@ -125,6 +153,8 @@ export async function deleteOperation(id: string): Promise<void> {
 }
 
 export async function addDiscount(discount: Discount): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('discounts')
     .upsert(discount);
@@ -132,6 +162,8 @@ export async function addDiscount(discount: Discount): Promise<void> {
 }
 
 export async function deleteDiscount(id: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('discounts')
     .delete()
@@ -140,6 +172,8 @@ export async function deleteDiscount(id: string): Promise<void> {
 }
 
 export async function getRecurringExpenses(): Promise<RecurringExpense[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('recurring_expenses')
     .select('*')
@@ -149,6 +183,8 @@ export async function getRecurringExpenses(): Promise<RecurringExpense[]> {
 }
 
 export async function saveRecurringExpense(item: RecurringExpense): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('recurring_expenses')
     .upsert(item);
@@ -156,6 +192,8 @@ export async function saveRecurringExpense(item: RecurringExpense): Promise<void
 }
 
 export async function addSafeTransaction(transaction: SafeTransaction): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('safe_transactions')
     .upsert(transaction);
@@ -163,6 +201,8 @@ export async function addSafeTransaction(transaction: SafeTransaction): Promise<
 }
 
 export async function getSafeTransactions(date: string): Promise<SafeTransaction[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   const { data, error } = await supabase
     .from('safe_transactions')
     .select('*')
@@ -171,7 +211,9 @@ export async function getSafeTransactions(date: string): Promise<SafeTransaction
   return data || [];
 }
 
-export async function deleteRowById(sheetName: string, id: string, date?: string): Promise<void> {
+export async function deleteRowById(sheetName: string, id: string): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   // В Supabase sheetName - это название таблицы
   const { error } = await supabase
     .from(sheetName)
@@ -181,19 +223,22 @@ export async function deleteRowById(sheetName: string, id: string, date?: string
 }
 
 export async function getGlobalBalances(): Promise<GlobalBalances> {
-  const { data, error } = await supabase
-    .from('global_config')
-    .select('*');
-  
-  if (error) throw error;
-  
   const balances: GlobalBalances = { 
     safe: 0, 
     bank: 0, 
     last_updated: new Date().toISOString() 
   };
   
-  data?.forEach(item => {
+  const supabase = getSupabase();
+  if (!supabase) return balances;
+
+  const { data, error } = await supabase
+    .from('global_config')
+    .select('*');
+  
+  if (error) throw error;
+  
+  data?.forEach((item: any) => {
     if (item.key === 'safe_balance') balances.safe = Number(item.value);
     if (item.key === 'bank_balance') balances.bank = Number(item.value);
     if (item.last_updated && new Date(item.last_updated) > new Date(balances.last_updated)) {
@@ -205,6 +250,8 @@ export async function getGlobalBalances(): Promise<GlobalBalances> {
 }
 
 export async function saveGlobalBalances(balances: Partial<GlobalBalances>): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const updates = [];
   if (balances.safe !== undefined) {
     updates.push({ key: 'safe_balance', value: balances.safe, last_updated: new Date().toISOString() });
@@ -222,6 +269,8 @@ export async function saveGlobalBalances(balances: Partial<GlobalBalances>): Pro
 }
 
 export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'> & { id?: string, timestamp?: string }): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
   const { error } = await supabase
     .from('action_logs')
     .upsert({
@@ -238,6 +287,8 @@ export async function addActionLog(log: Omit<ActionLog, 'id' | 'timestamp'> & { 
 }
 
 export async function getActionLogs(date?: string): Promise<ActionLog[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   let query = supabase
     .from('action_logs')
     .select('*')
@@ -252,13 +303,13 @@ export async function getActionLogs(date?: string): Promise<ActionLog[]> {
   const { data, error } = await query;
   if (error) throw error;
   
-  return (data || []).map(log => {
+  return (data || []).map((log: any) => {
     let details = log.details;
     try {
       if (details && (details.startsWith('{') || details.startsWith('['))) {
         details = JSON.parse(details);
       }
-    } catch (e) {
+    } catch {
       // Keep as string if parsing fails
     }
     return {
@@ -269,6 +320,8 @@ export async function getActionLogs(date?: string): Promise<ActionLog[]> {
 }
 
 export async function getExpensesByMonth(month: string): Promise<Expense[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
   const startDate = `${month}-01`;
   const endDate = `${month}-31`; // Supabase eq/gte/lte works with strings
 

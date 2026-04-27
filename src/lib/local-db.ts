@@ -4,11 +4,12 @@ import { Shift, Financials, Expense, Operation, FullDayData, DashboardSummary, R
 
 const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
 
-async function readDb() {
+async function readDb(): Promise<any> {
   try {
     const data = await fs.readFile(DB_PATH, 'utf-8');
     return JSON.parse(data);
-  } catch (error) {
+  } catch (err: any) {
+    console.error('Error reading from database:', err);
     return {};
   }
 }

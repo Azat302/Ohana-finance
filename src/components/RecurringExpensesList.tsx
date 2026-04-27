@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { RecurringExpense } from '@/types';
 import { saveRecurringExpenseAction, deleteItemAction } from '@/app/actions';
-import { Plus, Trash2, Power, Edit2, X } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
+import { Trash2, Power, Edit2 } from 'lucide-react';
 
 interface Props {
   initialExpenses: RecurringExpense[];

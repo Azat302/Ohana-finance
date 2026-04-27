@@ -68,21 +68,20 @@ export default function DashboardContent({ summaries, recurringExpenses, todaySt
   }, [activeSummaries]);
 
   // Calendar logic
-  const { calendarDays, monthStart } = useMemo(() => {
+  const { calendarDays } = useMemo(() => {
     const mStart = startOfMonth(viewDate);
     const mEnd = endOfMonth(viewDate);
     const cStart = startOfWeek(mStart, { weekStartsOn: 1 });
     const cEnd = endOfWeek(mEnd, { weekStartsOn: 1 });
     
     return {
-      monthStart: mStart,
       calendarDays: eachDayOfInterval({ start: cStart, end: cEnd })
     };
   }, [viewDate]);
 
   const years = useMemo(() => {
     const currentYear = getYear(new Date());
-    return Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+    return Array.from({ length: 5 }, (_, idx) => currentYear - 2 + idx);
   }, []);
 
   const months = [
@@ -177,7 +176,7 @@ export default function DashboardContent({ summaries, recurringExpenses, todaySt
             ))}
           </div>
           <div className="grid grid-cols-7 gap-1">
-            {calendarDays.map((day, i) => {
+            {calendarDays.map((day) => {
               const dStr = format(day, 'yyyy-MM-dd');
               const summary = summaries.find(s => s.date === dStr);
               const isCurrentMonth = isSameMonth(day, viewDate);

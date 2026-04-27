@@ -19,33 +19,22 @@ import {
   Clock,
 } from 'lucide-react';
 import ExpensesManager from './ExpensesManager';
-import { RecurringExpense, GlobalBalances, ActionLog, Expense, DashboardSummary } from '@/types';
-import { parseISO, startOfMonth, startOfWeek, format, isWithinInterval } from 'date-fns';
+import { GlobalBalances, ActionLog, Expense, DashboardSummary } from '@/types';
+import { parseISO, startOfMonth, startOfWeek, format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { 
   getActionLogAction, 
   getExpensesByMonthAction,
-  runMigrationAction, 
-  saveShiftAction, 
-  saveFinancialsAction, 
-  addExpenseAction, 
-  addOperationAction, 
-  addDiscountAction, 
-  saveRecurringExpenseAction,
-  addSafeTransactionAction,
-  deleteItemAction,
-  getGlobalBalancesAction,
   saveGlobalBalancesAction
 } from '@/app/actions';
 
 interface Props {
   today: string;
-  recurringExpenses: RecurringExpense[];
   summaries: DashboardSummary[];
   initialBalances: GlobalBalances;
 }
 
-export default function HubContent({ today, recurringExpenses, summaries, initialBalances }: Props) {
+export default function HubContent({ today, summaries, initialBalances }: Props) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<'menu' | 'expenses' | 'salaries' | 'analytics' | 'calendar' | 'agent' | 'settings' | 'history'>('menu');
@@ -60,29 +49,6 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   const [isLoadingSalaries, setIsLoadingSalaries] = useState(false);
   const [salaryMonth, setSalaryMonth] = useState(format(new Date(), 'yyyy-MM'));
   
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
-
-  const handleMigration = async () => {
-    if (!confirm('Вы уверены, что хотите запустить перенос данных из Google Sheets в Supabase? Это может занять время.')) return;
-    
-    setIsMigrating(true);
-    setMigrationStatus('Перенос данных запущен...');
-    try {
-      const result = await runMigrationAction();
-      if (result.success) {
-        setMigrationStatus('Миграция успешно завершена!');
-        alert('Данные перенесены! Теперь не забудь поменять USE_SUPABASE=true в .env.local');
-      } else {
-        setMigrationStatus(`Ошибка: ${result.error}`);
-      }
-    } catch (err) {
-      setMigrationStatus('Произошла критическая ошибка при миграции');
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
   const HUB_PASSWORD = '123';
 
   const loadLogs = async () => {
@@ -90,8 +56,8 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
     try {
       const data = await getActionLogAction();
       setLogs(data);
-    } catch (error) {
-      console.error('Failed to fetch logs');
+    } catch (err: any) {
+      console.error('Failed to fetch logs:', err);
     } finally {
       setIsLoadingLogs(false);
     }
@@ -108,8 +74,8 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
       );
 
       setSalaries(allSalaries.sort((a: Expense, b: Expense) => b.date.localeCompare(a.date)));
-    } catch (error) {
-      console.error('Error loading salaries:', error);
+    } catch (err: any) {
+      console.error('Error loading salaries:', err);
     } finally {
       setIsLoadingSalaries(false);
     }
@@ -212,57 +178,6 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   }
 
   // TAB RENDERING
-  if (activeTab === 'settings') {
-    return (
-      <div className="space-y-8 pb-20">
-        <button 
-          onClick={() => setActiveTab('menu')}
-          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
-        >
-          <LayoutGrid size={14} /> Назад в Хаб
-        </button>
-        
-        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 space-y-8">
-          <div>
-            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Настройки системы</h2>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Миграция и конфигурация</p>
-          </div>
-
-          <div className="p-6 bg-purple-50 rounded-[2rem] space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-purple-500 p-2 rounded-xl text-white">
-                <BarChart3 size={20} />
-              </div>
-              <div>
-                <h3 className="text-sm font-black text-gray-900 uppercase">Миграция в Supabase</h3>
-                <p className="text-[10px] font-bold text-purple-400 uppercase">Перенос данных из Google Sheets</p>
-              </div>
-            </div>
-            
-            <p className="text-xs text-gray-600 font-medium">
-              Эта функция перенесет все ваши данные из Google Таблиц в новую базу данных PostgreSQL на Supabase. 
-              Запускайте только после того, как настроите SQL и пропишете ключи в .env.local.
-            </p>
-
-            {migrationStatus && (
-              <div className={`p-3 rounded-xl text-[10px] font-black uppercase ${migrationStatus.includes('ошибка') ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                {migrationStatus}
-              </div>
-            )}
-
-            <button
-              onClick={handleMigration}
-              disabled={isMigrating}
-              className="w-full bg-gray-900 text-white p-4 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {isMigrating ? <Loader2 className="animate-spin" size={18} /> : 'Запустить перенос данных'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (activeTab === 'expenses') {
     return (
       <div className="space-y-8 pb-20">
@@ -480,7 +395,6 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   }
 
   const hubItems = [
-    { id: 'settings', name: 'Настройки БАЗЫ', icon: Settings, color: 'text-red-500', bg: 'bg-red-50' },
     { id: 'expenses', name: 'Расходы', icon: Banknote, color: 'text-orange-500', bg: 'bg-orange-50' },
     { id: 'salaries', name: 'Зарплаты', icon: Users, color: 'text-purple-500', bg: 'bg-purple-50' },
     { id: 'analytics', name: 'Аналитика', icon: BarChart3, color: 'text-blue-500', bg: 'bg-blue-50' },
