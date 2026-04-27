@@ -18,6 +18,9 @@ import {
   Clock,
   Settings,
   Fingerprint,
+  CheckCircle2,
+  Circle,
+  Check,
 } from 'lucide-react';
 import ExpensesManager from './ExpensesManager';
 import { GlobalBalances, ActionLog, Expense, DashboardSummary } from '@/types';
@@ -43,7 +46,8 @@ import { ru } from 'date-fns/locale';
 import { 
   getActionLogAction, 
   getExpensesByMonthAction,
-  saveGlobalBalancesAction
+  saveGlobalBalancesAction,
+  paySalariesAction
 } from '@/app/actions';
 import Link from 'next/link';
 
@@ -59,6 +63,9 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   const [activeTab, setActiveTab] = useState<'menu' | 'expenses' | 'salaries' | 'analytics' | 'calendar' | 'agent' | 'settings' | 'history'>('menu');
   const [isFaceIdSupported, setIsFaceIdSupported] = useState(false);
   const [isFaceIdEnabled, setIsFaceIdEnabled] = useState(false);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedSalaries, setSelectedSalaries] = useState<string[]>([]);
+  const [isPaying, setIsPaying] = useState(false);
 
   useEffect(() => {
     // Check for Face ID support
@@ -636,7 +643,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         )}
 
         {activeTab === 'salaries' && (
-          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6 relative pb-24">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-4">
                 <button 
@@ -658,59 +665,162 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
               </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden relative">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-gray-50 border-b border-gray-100">
-                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Дата</th>
-                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Сотрудник / Тип</th>
-                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider text-right">Сумма</th>
-                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Источник</th>
+                    <tr className="bg-gray-50/50 border-b border-gray-100">
+                      <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-50">Дата</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-50">Сотрудник / Тип</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-50">Кеш</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest border-r border-gray-50 text-right">Сумма</th>
+                      <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Статус</th>
+                      {isSelectionMode && <th className="px-4 w-10"></th>}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-gray-50">
                     {isLoadingSalaries ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center">
+                        <td colSpan={isSelectionMode ? 6 : 5} className="px-6 py-12 text-center">
                           <Loader2 className="h-8 w-8 text-blue-600 animate-spin mx-auto mb-2" />
-                          <p className="text-gray-500 font-bold">Загрузка...</p>
+                          <p className="text-gray-500 font-bold uppercase tracking-widest text-[10px]">Загрузка...</p>
                         </td>
                       </tr>
                     ) : sortedSalaries.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-bold">
-                          Нет данных за выбранный месяц
+                        <td colSpan={isSelectionMode ? 6 : 5} className="px-6 py-12 text-center text-gray-500 font-bold uppercase tracking-widest text-[10px]">
+                          Нет данных
                         </td>
                       </tr>
                     ) : (
-                      sortedSalaries.map((s) => (
-                        <tr key={s.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 text-sm font-bold text-gray-600">
-                            {format(parseISO(s.date), 'dd MMM', { locale: ru })}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-sm font-black text-gray-900">{s.title}</div>
-                          </td>
-                          <td className="px-6 py-4 text-right">
-              <div className="text-sm font-black text-blue-600">{s.amount.toLocaleString()} ₽</div>
-            </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
-                              s.payment_source === 'cash' 
-                                ? 'bg-blue-50 text-blue-700' 
-                                : 'bg-purple-50 text-purple-700'
-                            }`}>
-                              {s.payment_source === 'cash' ? 'Нал' : 'Р/С'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                      sortedSalaries.map((s) => {
+                        const isSelected = selectedSalaries.includes(s.id);
+                        const isSelectable = s.payment_source === 'bank' && s.status !== 'paid';
+                        const isPaid = s.status === 'paid' || s.payment_source === 'cash';
+
+                        return (
+                          <tr 
+                            key={s.id} 
+                            onClick={() => {
+                              if (isSelectionMode && isSelectable) {
+                                setSelectedSalaries(prev => 
+                                  prev.includes(s.id) ? prev.filter(id => id !== s.id) : [...prev, s.id]
+                                );
+                              }
+                            }}
+                            className={`
+                              transition-colors 
+                              ${isSelectionMode && isSelectable ? 'cursor-pointer hover:bg-blue-50/30' : 'hover:bg-gray-50/50'}
+                              ${isSelected ? 'bg-blue-50/50' : ''}
+                            `}
+                          >
+                            <td className="px-6 py-4 text-xs font-bold text-gray-400 border-r border-gray-50">
+                              {format(parseISO(s.date), 'dd.MM', { locale: ru })}
+                            </td>
+                            <td className="px-6 py-4 border-r border-gray-50">
+                              <div className="text-xs font-black text-gray-900">{s.title}</div>
+                            </td>
+                            <td className="px-6 py-4 border-r border-gray-50">
+                              <span className={`text-[10px] font-black uppercase ${
+                                s.payment_source === 'cash' ? 'text-blue-600' : 'text-purple-600'
+                              }`}>
+                                {s.payment_source === 'cash' ? 'Нал' : 'Р/С'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right border-r border-gray-50">
+                              <div className="text-xs font-black text-gray-900">{s.amount.toLocaleString()} ₽</div>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              {isPaid ? (
+                                <div className="mx-auto w-5 h-5 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                                  <Check size={12} strokeWidth={4} />
+                                </div>
+                              ) : (
+                                <div className="mx-auto w-5 h-5 rounded-full bg-red-100 flex items-center justify-center text-red-600">
+                                  <X size={12} strokeWidth={4} />
+                                </div>
+                              )}
+                            </td>
+                            {isSelectionMode && (
+                              <td className="px-4 text-center">
+                                {isSelectable ? (
+                                  isSelected ? (
+                                    <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                                  ) : (
+                                    <Circle className="h-5 w-5 text-gray-200" />
+                                  )
+                                ) : (
+                                  <div className="h-5 w-5" />
+                                )}
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
+
+            <div className="flex justify-between items-center px-2">
+              <button 
+                onClick={() => {
+                  setIsSelectionMode(!isSelectionMode);
+                  setSelectedSalaries([]);
+                }}
+                className={`
+                  px-8 py-3 rounded-full text-sm font-black transition-all active:scale-95 shadow-sm border
+                  ${isSelectionMode 
+                    ? 'bg-gray-900 text-white border-transparent' 
+                    : 'bg-white text-gray-900 border-gray-100 hover:border-gray-200'}
+                `}
+              >
+                {isSelectionMode ? 'Отмена' : 'Выбрать'}
+              </button>
+              
+              {/* Optional right button if needed in future */}
+              <div />
+            </div>
+
+            {/* Floating Payment Bar */}
+            {selectedSalaries.length > 0 && (
+              <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-8 duration-300">
+                <div className="bg-gray-900 text-white px-6 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md bg-opacity-90">
+                  <div className="flex flex-col">
+                    <span className="text-[8px] font-black uppercase text-white/40 tracking-widest leading-none mb-1">К оплате ({selectedSalaries.length})</span>
+                    <span className="text-lg font-black leading-none">
+                      {salaries.filter(s => selectedSalaries.includes(s.id)).reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
+                    </span>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (isPaying) return;
+                      setIsPaying(true);
+                      try {
+                        const result = await paySalariesAction(selectedSalaries);
+                        if (result.success) {
+                          await loadSalaries();
+                          setSelectedSalaries([]);
+                          setIsSelectionMode(false);
+                        } else {
+                          alert('Ошибка при оплате: ' + result.error);
+                        }
+                      } catch (err) {
+                        console.error('Payment error:', err);
+                        alert('Произошла ошибка при обработке платежа');
+                      } finally {
+                        setIsPaying(false);
+                      }
+                    }}
+                    disabled={isPaying}
+                    className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Оплатить'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

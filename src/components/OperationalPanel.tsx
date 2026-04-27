@@ -650,26 +650,21 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
                   )}
                   {modal === 'safe_manual' && (
                     <div className="space-y-4">
-                      <div className="bg-blue-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-blue-500 mb-4">
-                        <ShieldCheck size={32} />
+                      <div className="space-y-1">
+                        <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Введите пароль</label>
+                        <input 
+                          type="password" 
+                          placeholder="••••" 
+                          className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center tracking-[0.5em]" 
+                          value={password}
+                          onChange={e => setPassword(e.target.value)}
+                          required 
+                          autoFocus 
+                        />
                       </div>
-                      <div className="space-y-4">
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Введите пароль</label>
-                          <input 
-                            type="password" 
-                            placeholder="••••" 
-                            className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center tracking-[0.5em]" 
-                            value={password}
-                            onChange={e => setPassword(e.target.value)}
-                            required 
-                            autoFocus 
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Новая сумма в сейфе (₽)</label>
-                          <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-base font-bold text-center" required />
-                        </div>
+                      <div className="space-y-1">
+                        <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Новая сумма в сейфе (₽)</label>
+                        <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-base font-bold text-center" required />
                       </div>
                     </div>
                   )}

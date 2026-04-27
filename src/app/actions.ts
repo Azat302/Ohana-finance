@@ -168,6 +168,65 @@ export async function saveFinancialsAction(fin: Financials) {
   }
 }
 
+export async function paySalariesAction(expenseIds: string[]) {
+  try {
+    const supabase = (await import('@/lib/supabase-db')).getSupabase();
+    if (!supabase) throw new Error('Supabase not initialized');
+
+    // 1. Get expenses to calculate total amount
+    const { data: expenses, error: fetchError } = await supabase
+      .from('expenses')
+      .select('*')
+      .in('id', expenseIds);
+
+    if (fetchError) throw fetchError;
+    if (!expenses || expenses.length === 0) return { success: true };
+
+    const totalAmount = (expenses as Expense[]).reduce((sum, e) => sum + (e.amount || 0), 0);
+
+    // 2. Update expenses status to 'paid'
+    const { error: updateError } = await supabase
+      .from('expenses')
+      .update({ status: 'paid' })
+      .in('id', expenseIds);
+
+    if (updateError) throw updateError;
+
+    // 3. Update bank balance
+    const { data: configData, error: configError } = await supabase
+      .from('global_config')
+      .select('*')
+      .eq('key', 'bank_balance')
+      .single();
+
+    if (configError && configError.code !== 'PGRST116') throw configError;
+
+    const currentBankBalance = configData ? Number(configData.value) : 0;
+    const newBankBalance = currentBankBalance - totalAmount;
+
+    await supabase
+      .from('global_config')
+      .upsert({ key: 'bank_balance', value: newBankBalance, last_updated: new Date().toISOString() });
+
+    // 4. Log action
+    const { ip, userAgent } = await getMetadata();
+    await db.addActionLog({
+      date: format(new Date(), 'yyyy-MM-dd'),
+      action_type: 'SALARY_BATCH_PAY',
+      description: `Массовая оплата ЗП (${expenseIds.length} шт)`,
+      details: `Сумма: -${totalAmount} ₽. Списано с Р/С. Новый баланс: ${newBankBalance} ₽`,
+      ip,
+      user_agent: userAgent
+    });
+
+    revalidatePath('/hub');
+    return { success: true };
+  } catch (error) {
+    console.error('paySalariesAction error:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export async function addExpenseAction(expense: Expense) {
   try {
     await db.addExpense(expense);

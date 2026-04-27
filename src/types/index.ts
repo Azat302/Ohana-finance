@@ -23,6 +23,7 @@ export interface Expense {
   type: 'fixed' | 'variable';
   payment_source: 'cash' | 'bank';
   payment_type: 'cash' | 'card'; // keeping for compatibility, might merge later
+  status?: 'paid' | 'pending';
 }
 
 export interface Operation {
