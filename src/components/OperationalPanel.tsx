@@ -35,7 +35,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isLocked, setIsLocked] = useState(!isToday);
   const [password, setPassword] = useState('');
-  const EDIT_PASSWORD = '123';
+  const EDIT_PASSWORD = 'OhanaBest302!';
 
   // Helper for real-time calculations
   const calculateFinancials = (revCash: number, revCard: number, expenses: Expense[] = data.expenses) => {

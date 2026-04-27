@@ -16,6 +16,8 @@ import {
   X,
   Loader2,
   Clock,
+  Settings,
+  Fingerprint,
 } from 'lucide-react';
 import ExpensesManager from './ExpensesManager';
 import { GlobalBalances, ActionLog, Expense, DashboardSummary } from '@/types';
@@ -37,6 +39,97 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<'menu' | 'expenses' | 'salaries' | 'analytics' | 'calendar' | 'agent' | 'settings' | 'history'>('menu');
+  const [isFaceIdSupported, setIsFaceIdSupported] = useState(false);
+  const [isFaceIdEnabled, setIsFaceIdEnabled] = useState(false);
+
+  useEffect(() => {
+    // Check for Face ID support
+    if (window.PublicKeyCredential) {
+      setIsFaceIdSupported(true);
+      const enabled = localStorage.getItem('faceIdEnabled') === 'true';
+      setIsFaceIdEnabled(enabled);
+    }
+  }, []);
+
+  const handleToggleFaceId = async () => {
+    if (isFaceIdEnabled) {
+      localStorage.removeItem('faceIdEnabled');
+      localStorage.removeItem('faceIdCredentialId');
+      setIsFaceIdEnabled(false);
+      return;
+    }
+
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const userID = 'admin-' + Date.now();
+      const publicKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions = {
+        challenge,
+        rp: {
+          name: "Ohana Finance",
+          id: window.location.hostname,
+        },
+        user: {
+          id: Uint8Array.from(userID, c => c.charCodeAt(0)),
+          name: "admin",
+          displayName: "Admin",
+        },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }], // ES256
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+        },
+        timeout: 60000,
+        attestation: "none",
+      };
+
+      const credential = await navigator.credentials.create({
+        publicKey: publicKeyCredentialCreationOptions
+      }) as PublicKeyCredential;
+
+      if (credential) {
+        localStorage.setItem('faceIdEnabled', 'true');
+        localStorage.setItem('faceIdCredentialId', btoa(String.fromCharCode(...new Uint8Array(credential.rawId))));
+        setIsFaceIdEnabled(true);
+        alert('Face ID успешно настроен!');
+      }
+    } catch (err) {
+      console.error('Face ID Error:', err);
+      alert('Не удалось настроить Face ID. Убедитесь, что ваше устройство поддерживает биометрию.');
+    }
+  };
+
+  const handleFaceIdAuth = async () => {
+    try {
+      const credentialIdB64 = localStorage.getItem('faceIdCredentialId');
+      if (!credentialIdB64) return;
+
+      const credentialId = Uint8Array.from(atob(credentialIdB64), c => c.charCodeAt(0));
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions = {
+        challenge,
+        allowCredentials: [{
+          id: credentialId,
+          type: 'public-key',
+        }],
+        userVerification: "required",
+        timeout: 60000,
+      };
+
+      const assertion = await navigator.credentials.get({
+        publicKey: publicKeyCredentialRequestOptions
+      });
+
+      if (assertion) {
+        setIsAuthenticated(true);
+      }
+    } catch (err) {
+      console.error('Face ID Auth Error:', err);
+    }
+  };
   const [balances, setBalances] = useState<GlobalBalances>(initialBalances);
   const [editingBalance, setEditingBalance] = useState<'safe' | 'bank' | null>(null);
   const [tempValue, setTempValue] = useState('');
@@ -48,7 +141,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   const [isLoadingSalaries, setIsLoadingSalaries] = useState(false);
   const [salaryMonth, setSalaryMonth] = useState(format(new Date(), 'yyyy-MM'));
   
-  const HUB_PASSWORD = '123';
+  const HUB_PASSWORD = 'OhanaBest302!';
 
   const loadLogs = async () => {
     setIsLoadingLogs(true);
@@ -175,13 +268,77 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                 if (e.target.value === HUB_PASSWORD) setIsAuthenticated(true);
               }}
             />
+            
+            {isFaceIdEnabled && (
+              <button 
+                onClick={handleFaceIdAuth}
+                className="w-full flex items-center justify-center gap-2 p-4 text-purple-600 font-black uppercase text-[10px] tracking-widest hover:bg-purple-50 rounded-2xl transition-all"
+              >
+                <Fingerprint size={18} /> Войти через Face ID
+              </button>
+            )}
           </div>
         </div>
       </div>
     );
   }
 
+  useEffect(() => {
+    if (!isAuthenticated && isFaceIdEnabled) {
+      handleFaceIdAuth();
+    }
+  }, [isAuthenticated, isFaceIdEnabled]);
+
   // TAB RENDERING
+  if (activeTab === 'settings') {
+    return (
+      <div className="space-y-6 pb-20">
+        <button 
+          onClick={() => setActiveTab('menu')}
+          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
+        >
+          <LayoutGrid size={14} /> Назад
+        </button>
+
+        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 min-h-[400px] flex flex-col space-y-8">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Настройки</h2>
+          </div>
+
+          <div className="space-y-6">
+            <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
+              <div className="space-y-1">
+                <div className="text-sm font-black text-gray-900 uppercase">Биометрия (Face ID)</div>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Вход в Хаб без ввода пароля</p>
+              </div>
+              <button 
+                onClick={handleToggleFaceId}
+                disabled={!isFaceIdSupported}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${
+                  isFaceIdEnabled ? 'bg-purple-500' : 'bg-gray-200'
+                } ${!isFaceIdSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span
+                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                    isFaceIdEnabled ? 'translate-x-7' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="p-6 bg-purple-50 rounded-[2rem] border border-purple-100 space-y-3">
+              <div className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Безопасность</div>
+              <p className="text-xs text-purple-900/60 font-medium leading-relaxed">
+                Пароль администратора изменен на <span className="font-black text-purple-600">OhanaBest302!</span>. 
+                Биометрия работает только на этом устройстве.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (activeTab === 'expenses') {
     return (
       <div className="space-y-8 pb-20">
@@ -411,6 +568,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
     { id: 'analytics', name: 'Аналитика', icon: BarChart3, color: 'text-blue-500', bg: 'bg-blue-50' },
     { id: 'calendar', name: 'Календарь', icon: Calendar, color: 'text-green-500', bg: 'bg-green-50' },
     { id: 'agent', name: 'Чат с агентом', icon: MessageSquare, color: 'text-pink-500', bg: 'bg-pink-50' },
+    { id: 'settings', name: 'Настройки', icon: Settings, color: 'text-gray-500', bg: 'bg-gray-50' },
   ];
 
   return (
