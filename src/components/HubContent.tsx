@@ -48,19 +48,29 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
       setIsFaceIdSupported(true);
       const enabled = localStorage.getItem('faceIdEnabled') === 'true';
       setIsFaceIdEnabled(enabled);
+      
+      // Автоматический вход через Face ID при загрузке, если включено
+      if (enabled && !isAuthenticated) {
+        handleFaceIdAuth();
+      }
     }
   }, []);
 
   const handleToggleFaceId = async () => {
     if (isFaceIdEnabled) {
-      localStorage.removeItem('faceIdEnabled');
-      localStorage.removeItem('faceIdCredentialId');
-      setIsFaceIdEnabled(false);
+      if (confirm('Вы уверены, что хотите отключить Face ID?')) {
+        localStorage.removeItem('faceIdEnabled');
+        localStorage.removeItem('faceIdCredentialId');
+        setIsFaceIdEnabled(false);
+      }
       return;
     }
 
     try {
-      if (typeof window === 'undefined') return;
+      if (typeof window === 'undefined' || !window.PublicKeyCredential) {
+        alert('Ваше устройство не поддерживает WebAuthn');
+        return;
+      }
 
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
@@ -96,15 +106,17 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
         setIsFaceIdEnabled(true);
         alert('Face ID успешно настроен!');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Face ID Error:', err);
-      alert('Не удалось настроить Face ID. Убедитесь, что ваше устройство поддерживает биометрию.');
+      if (err.name !== 'NotAllowedError') {
+        alert('Не удалось настроить Face ID. Убедитесь, что ваше устройство поддерживает биометрию и HTTPS.');
+      }
     }
   };
 
   const handleFaceIdAuth = async () => {
     try {
-      if (typeof window === 'undefined') return;
+      if (typeof window === 'undefined' || !window.PublicKeyCredential) return;
       const credentialIdB64 = localStorage.getItem('faceIdCredentialId');
       if (!credentialIdB64) return;
 
@@ -129,8 +141,9 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
       if (assertion) {
         setIsAuthenticated(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Face ID Auth Error:', err);
+      // Не показываем ошибку при авто-входе, чтобы не спамить
     }
   };
   const [balances, setBalances] = useState<GlobalBalances>(initialBalances);
@@ -219,67 +232,98 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   };
 
   const stats = useMemo(() => {
-    if (!summaries) return { currentWeekRevenue: 0, currentMonthRevenue: 0, currentMonthProfit: 0 };
-    
-    const now = new Date();
-    const activeSummaries = Array.isArray(summaries) ? summaries.filter(s => s && (s.total_revenue > 0 || s.profit !== 0)) : [];
-    
-    const monday = startOfWeek(now, { weekStartsOn: 1 });
-    const currentWeekRevenue = activeSummaries
-      .filter(s => {
-        const d = parseISO(s.date);
-        return d >= monday && d <= now;
-      })
-      .reduce((sum, s) => sum + s.total_revenue, 0);
+    try {
+      if (!summaries || !Array.isArray(summaries)) {
+        return { currentWeekRevenue: 0, currentMonthRevenue: 0, currentMonthProfit: 0 };
+      }
+      
+      const now = new Date();
+      const activeSummaries = summaries.filter(s => s && s.date && (Number(s.total_revenue) > 0 || Number(s.profit) !== 0));
+      
+      const monday = startOfWeek(now, { weekStartsOn: 1 });
+      const currentMonthStart = startOfMonth(now);
 
-    const currentMonthStart = startOfMonth(now);
-    const currentMonthRevenue = activeSummaries
-      .filter(s => {
-        const d = parseISO(s.date);
-        return d >= currentMonthStart && d <= now;
-      })
-      .reduce((sum, s) => sum + s.total_revenue, 0);
+      const currentWeekRevenue = activeSummaries
+        .filter(s => {
+          try {
+            const d = parseISO(s.date);
+            return d >= monday && d <= now;
+          } catch { return false; }
+        })
+        .reduce((sum, s) => sum + (Number(s.total_revenue) || 0), 0);
 
-    const currentMonthProfit = activeSummaries
-      .filter(s => {
-        const d = parseISO(s.date);
-        return d >= currentMonthStart && d <= now;
-      })
-      .reduce((sum, s) => sum + s.profit, 0);
+      const currentMonthRevenue = activeSummaries
+        .filter(s => {
+          try {
+            const d = parseISO(s.date);
+            return d >= currentMonthStart && d <= now;
+          } catch { return false; }
+        })
+        .reduce((sum, s) => sum + (Number(s.total_revenue) || 0), 0);
 
-    return { currentWeekRevenue, currentMonthRevenue, currentMonthProfit };
+      const currentMonthProfit = activeSummaries
+        .filter(s => {
+          try {
+            const d = parseISO(s.date);
+            return d >= currentMonthStart && d <= now;
+          } catch { return false; }
+        })
+        .reduce((sum, s) => sum + (Number(s.profit) || 0), 0);
+
+      return { currentWeekRevenue, currentMonthRevenue, currentMonthProfit };
+    } catch (err) {
+      console.error('Stats calculation error:', err);
+      return { currentWeekRevenue: 0, currentMonthRevenue: 0, currentMonthProfit: 0 };
+    }
   }, [summaries]);
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-4 space-y-6">
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 w-full max-w-sm text-center space-y-6">
-          <div className="bg-purple-50 w-16 h-16 rounded-3xl flex items-center justify-center mx-auto text-purple-500">
-            <Lock size={32} />
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="text-center">
+            <div className="mx-auto h-12 w-12 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+              <Lock className="h-6 w-6 text-orange-600" />
+            </div>
+            <h2 className="text-3xl font-black text-gray-900">Хаб управления</h2>
+            <p className="mt-2 text-sm text-gray-600">Введите пароль администратора</p>
           </div>
-          <div className="space-y-2">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Вход в Хаб</h2>
-            <p className="text-gray-400 text-sm font-medium">Введите пароль администратора</p>
-          </div>
-          <div className="space-y-4">
-            <input 
-              type="password" 
-              placeholder="••••" 
-              className="w-full p-5 bg-gray-50 rounded-2xl text-center text-2xl font-black tracking-[0.5em] border-none focus:ring-2 focus:ring-purple-500 transition-all"
-              autoFocus
-              value={password}
-              onChange={e => {
-                setPassword(e.target.value);
-                if (e.target.value === HUB_PASSWORD) setIsAuthenticated(true);
+          <div className="mt-8 space-y-4">
+            <div className="relative">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="block w-full px-4 py-4 text-center text-2xl tracking-widest border-2 border-gray-200 rounded-2xl focus:ring-orange-500 focus:border-orange-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && password === HUB_PASSWORD) {
+                    setIsAuthenticated(true);
+                  }
+                }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                if (password === HUB_PASSWORD) {
+                  setIsAuthenticated(true);
+                } else {
+                  alert('Неверный пароль');
+                }
               }}
-            />
-            
+              className="w-full flex justify-center py-4 px-4 border border-transparent rounded-2xl shadow-sm text-lg font-bold text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all active:scale-95"
+            >
+              Войти
+            </button>
+
             {isFaceIdEnabled && (
-              <button 
+              <button
                 onClick={handleFaceIdAuth}
-                className="w-full flex items-center justify-center gap-2 p-4 text-purple-600 font-black uppercase text-[10px] tracking-widest hover:bg-purple-50 rounded-2xl transition-all"
+                className="w-full flex items-center justify-center gap-2 py-4 px-4 border-2 border-gray-200 rounded-2xl shadow-sm text-lg font-bold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-all active:scale-95"
               >
-                <Fingerprint size={18} /> Войти через Face ID
+                <Fingerprint className="h-6 w-6 text-orange-600" />
+                Вход по Face ID
               </button>
             )}
           </div>
@@ -287,413 +331,416 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
       </div>
     );
   }
-
-  useEffect(() => {
-    if (!isAuthenticated && isFaceIdEnabled) {
-      handleFaceIdAuth();
-    }
-  }, [isAuthenticated, isFaceIdEnabled]);
-
-  // TAB RENDERING
-  if (activeTab === 'settings') {
-    return (
-      <div className="space-y-6 pb-20">
-        <button 
-          onClick={() => setActiveTab('menu')}
-          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
-        >
-          <LayoutGrid size={14} /> Назад
-        </button>
-
-        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 min-h-[400px] flex flex-col space-y-8">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Настройки</h2>
-          </div>
-
-          <div className="space-y-6">
-            <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[2rem] border border-gray-100">
-              <div className="space-y-1">
-                <div className="text-sm font-black text-gray-900 uppercase">Биометрия (Face ID)</div>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">Вход в Хаб без ввода пароля</p>
-              </div>
-              <button 
-                onClick={handleToggleFaceId}
-                disabled={!isFaceIdSupported}
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${
-                  isFaceIdEnabled ? 'bg-purple-500' : 'bg-gray-200'
-                } ${!isFaceIdSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <span
-                  className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                    isFaceIdEnabled ? 'translate-x-7' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-            </div>
-
-            <div className="p-6 bg-purple-50 rounded-[2rem] border border-purple-100 space-y-3">
-              <div className="text-[10px] font-black text-purple-600 uppercase tracking-widest">Безопасность</div>
-              <p className="text-xs text-purple-900/60 font-medium leading-relaxed">
-                Пароль администратора изменен на <span className="font-black text-purple-600">OhanaBest302!</span>. 
-                Биометрия работает только на этом устройстве.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeTab === 'expenses') {
-    return (
-      <div className="space-y-8 pb-20">
-        <button 
-          onClick={() => setActiveTab('menu')}
-          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
-        >
-          <LayoutGrid size={14} /> Назад в Хаб
-        </button>
-        <ExpensesManager initialDate={today} />
-      </div>
-    );
-  }
-
-  if (activeTab === 'history') {
-    return (
-      <div className="space-y-8 pb-20">
-        <button 
-          onClick={() => setActiveTab('menu')}
-          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
-        >
-          <LayoutGrid size={14} /> Назад в Хаб
-        </button>
-        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 min-h-[500px] flex flex-col">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">История действий</h2>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <input 
-                type="date" 
-                value={selectedLogDate}
-                onChange={(e) => setSelectedLogDate(e.target.value)}
-                className="text-xs font-bold uppercase p-2 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-purple-500"
-              />
-              {selectedLogDate && (
-                <button 
-                  onClick={() => setSelectedLogDate('')}
-                  className="text-[10px] font-black uppercase text-purple-500 bg-purple-50 px-3 py-2 rounded-xl"
-                >
-                  Сброс
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="flex-1 space-y-8 overflow-y-auto max-h-[600px] pr-2 scrollbar-hide">
-            {isLoadingLogs ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <Loader2 className="animate-spin text-purple-500" size={32} />
-                <p className="text-gray-400 text-sm font-bold uppercase tracking-widest">Загрузка истории...</p>
-              </div>
-            ) : Object.keys(groupedLogs).length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-                <div className="bg-gray-50 p-6 rounded-[2rem] text-gray-300">
-                  <Clock size={48} />
-                </div>
-                <p className="text-gray-400 text-sm font-medium">За этот период действий не найдено</p>
-              </div>
-            ) : (
-              Object.entries(groupedLogs)
-                .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
-                .map(([date, dayLogs]) => (
-                  <div key={date} className="space-y-4">
-                    <div className="sticky top-0 bg-white/80 backdrop-blur-sm py-2 z-10">
-                      <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">
-                        {format(parseISO(date), 'd MMMM yyyy', { locale: ru })}
-                      </h3>
-                    </div>
-                    <div className="border-l-2 border-gray-100 ml-2 space-y-6">
-                      {dayLogs
-                        .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
-                        .map((log) => (
-                        <div key={log.id} className="relative pl-8">
-                          <div className="absolute left-[-5px] top-1.5 w-2 h-2 rounded-full bg-purple-500 border-2 border-white shadow-sm" />
-                          <div className="bg-gray-50/50 hover:bg-gray-50 p-4 rounded-2xl transition-colors">
-                            <div className="flex justify-between items-start mb-1">
-                              <p className="text-sm font-bold text-gray-800 leading-tight">
-                                {log.description}
-                              </p>
-                              <span className="text-[9px] font-black text-gray-300 uppercase shrink-0 ml-2">
-                                {format(parseISO(log.timestamp), 'HH:mm')}
-                              </span>
-                            </div>
-                            {log.details && (
-                              <p className="text-[11px] text-gray-500 font-medium mt-1 italic">
-                                {log.details.startsWith('{') ? 'Технические данные обновлены' : log.details}
-                              </p>
-                            )}
-                            {(log.ip || log.user_agent) && (
-                              <div className="mt-2 flex items-center gap-3 text-[8px] font-black text-gray-300 uppercase tracking-widest border-t border-gray-100/50 pt-2">
-                                {log.ip && (
-                                  <span className="flex items-center gap-1">
-                                    IP: <span className="text-gray-400">{log.ip}</span>
-                                  </span>
-                                )}
-                                {log.user_agent && (
-                                  <span className="flex items-center gap-1 truncate max-w-[150px]">
-                                    DEV: <span className="text-gray-400 truncate" title={log.user_agent}>
-                                      {log.user_agent.includes('iPhone') ? 'iPhone' : 
-                                       log.user_agent.includes('Android') ? 'Android' : 
-                                       log.user_agent.includes('Windows') ? 'Windows' : 
-                                       log.user_agent.includes('Macintosh') ? 'Mac' : 'Device'}
-                                    </span>
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))
-            )}
-          </div>
-          
-          <p className="text-center text-[9px] font-black text-gray-300 uppercase tracking-widest mt-8">
-            Все воздействия с Ohana Финанс сохраняются здесь
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (activeTab === 'salaries') {
-    return (
-      <div className="space-y-6 pb-20">
-        <button 
-          onClick={() => setActiveTab('menu')}
-          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
-        >
-          <LayoutGrid size={14} /> Назад
-        </button>
-
-        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 min-h-[400px] flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-black text-gray-900 tracking-tighter uppercase italic">Зарплаты</h2>
-            <div className="flex items-center gap-2">
-              <input 
-                type="month" 
-                value={salaryMonth}
-                onChange={(e) => setSalaryMonth(e.target.value)}
-                className="text-[10px] font-black uppercase p-2 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-          </div>
-
-          {isLoadingSalaries ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-2">
-              <Loader2 className="animate-spin" size={24} />
-              <span className="text-[9px] font-black uppercase tracking-widest">Загрузка...</span>
-            </div>
-          ) : sortedSalaries.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-300 italic">
-              <span className="text-[9px] font-black uppercase tracking-widest">Нет данных за этот месяц</span>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {sortedSalaries.map((op) => {
-                const isSalary = op.title.toLowerCase().startsWith('зп');
-                const name = op.title.split(' ').slice(1).join(' ');
-                
-                return (
-                  <div key={op.id} className="py-3 flex items-center justify-between group">
-                    <div className="flex flex-col">
-                      <div className="text-xs font-black text-gray-800 uppercase tracking-tight">
-                        {name || op.title}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-bold text-gray-400 uppercase">
-                          {format(parseISO(op.date), 'dd.MM')}
-                        </span>
-                        <span className={`text-[9px] font-black uppercase tracking-tighter ${isSalary ? 'text-purple-400' : 'text-orange-400'}`}>
-                          {isSalary ? 'ЗП' : 'Премия'}
-                        </span>
-                        <span className="text-[9px] font-medium text-gray-300 uppercase tracking-tighter">
-                          {op.payment_source === 'cash' ? 'Нал' : 'РС'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-sm font-black text-gray-900">
-                      {op.amount.toLocaleString()} ₽
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="pt-4 mt-2 border-t border-gray-100 flex justify-between items-center">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Всего за {format(parseISO(`${salaryMonth}-01`), 'LLLL', { locale: ru })}:</span>
-                <span className="text-sm font-black text-purple-600">
-                  {sortedSalaries.reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Fallback for development tabs
-  if (activeTab !== 'menu') {
-    const tabNames: {[key: string]: string} = {
-      analytics: 'Аналитика',
-      calendar: 'Календарь',
-      agent: 'Чат с агентом'
-    };
-
-    return (
-      <div className="space-y-8 pb-20">
-        <button 
-          onClick={() => setActiveTab('menu')}
-          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
-        >
-          <LayoutGrid size={14} /> Назад в Хаб
-        </button>
-        <div className="bg-white p-12 rounded-[2.5rem] border border-gray-100 text-center space-y-4">
-          <div className="text-4xl">🏗️</div>
-          <h2 className="text-xl font-black text-gray-900">Раздел {tabNames[activeTab] || activeTab} в разработке</h2>
-          <p className="text-gray-400 text-sm font-medium">Мы скоро добавим сюда функционал</p>
-        </div>
-      </div>
-    );
-  }
-
-  const hubItems = [
-    { id: 'expenses', name: 'Расходы', icon: Banknote, color: 'text-orange-500', bg: 'bg-orange-50' },
-    { id: 'salaries', name: 'Зарплаты', icon: Users, color: 'text-purple-500', bg: 'bg-purple-50' },
-    { id: 'analytics', name: 'Аналитика', icon: BarChart3, color: 'text-blue-500', bg: 'bg-blue-50' },
-    { id: 'calendar', name: 'Календарь', icon: Calendar, color: 'text-green-500', bg: 'bg-green-50' },
-    { id: 'agent', name: 'Чат с агентом', icon: MessageSquare, color: 'text-pink-500', bg: 'bg-pink-50' },
-    { id: 'settings', name: 'Настройки', icon: Settings, color: 'text-gray-500', bg: 'bg-gray-50' },
-  ];
 
   return (
-    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
-      <header className="px-2 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tighter uppercase italic">Хаб управления</h1>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Центр управления Ohana</p>
-        </div>
-        <button 
-          onClick={() => setActiveTab('history')}
-          className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 text-gray-400 hover:text-purple-500 transition-colors active:scale-95"
-        >
-          <History size={20} />
-        </button>
-      </header>
-
-      {/* Global Balances */}
-      <section className="grid grid-cols-1">
-        <button 
-          onClick={() => {
-            setEditingBalance('safe');
-            setTempValue(balances.safe.toString());
-          }}
-          className="bg-white p-6 rounded-[2rem] border border-gray-100 flex flex-col items-start gap-2 active:scale-95 transition-all relative overflow-hidden group"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Wallet size={80} />
-          </div>
-          <div className="bg-emerald-50 text-emerald-500 p-2 rounded-xl">
-            <Wallet size={16} />
-          </div>
-          <div className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Сейф (наличные)</div>
-          <div className="text-xl font-black text-gray-900">{balances.safe.toLocaleString()} ₽</div>
-          <div className="text-[8px] font-bold text-emerald-600 uppercase tracking-tighter mt-1">
-            Нажмите, чтобы изменить вручную
-          </div>
-        </button>
-      </section>
-
-      {/* Balance Edit Modal */}
-      {editingBalance && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 space-y-6 animate-in slide-in-from-bottom duration-300">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xl font-black text-gray-900 uppercase italic">
-                {editingBalance === 'safe' ? 'Редактировать сейф' : 'Редактировать счет'}
-              </h3>
-              <button onClick={() => setEditingBalance(null)} className="text-gray-400"><X size={24} /></button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Шапка */}
+      <div className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+              <LayoutGrid className="h-6 w-6 text-white" />
             </div>
-            <div className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-black text-gray-400 ml-1">Сумма (₽)</label>
+            <div>
+              <h1 className="text-xl font-black text-gray-900 leading-none">OHANA</h1>
+              <p className="text-xs font-bold text-orange-600 tracking-tighter uppercase mt-0.5">Control Hub</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setActiveTab('menu')}
+            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+          >
+            <X className="h-6 w-6 text-gray-400" />
+          </button>
+        </div>
+      </div>
+
+      <main className="max-w-7xl mx-auto p-4 pb-24">
+        {activeTab === 'menu' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Статистика */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-green-50 rounded-lg text-green-600">
+                    <TrendingUp className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-500">Выручка недели</span>
+                </div>
+                <div className="text-2xl font-black text-gray-900">
+                  {stats.currentWeekRevenue.toLocaleString()} ₸
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
+                    <BarChart3 className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-500">Выручка месяца</span>
+                </div>
+                <div className="text-2xl font-black text-gray-900">
+                  {stats.currentMonthRevenue.toLocaleString()} ₸
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+                    <Banknote className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-bold text-gray-500">Прибыль месяца</span>
+                </div>
+                <div className="text-2xl font-black text-purple-600">
+                  {stats.currentMonthProfit.toLocaleString()} ₸
+                </div>
+              </div>
+            </div>
+
+            {/* Балансы */}
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                  <Wallet className="h-5 w-5 text-orange-600" />
+                  Текущие остатки
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => {
+                    setEditingBalance('safe');
+                    setTempValue(balances.safe.toString());
+                  }}
+                  className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 hover:bg-orange-50 transition-colors group text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-xl shadow-sm text-gray-600">
+                      <Lock className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-gray-500 uppercase">Сейф</div>
+                      <div className="text-xl font-black text-gray-900">{balances.safe.toLocaleString()} ₸</div>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-orange-400 transition-colors" />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingBalance('bank');
+                    setTempValue(balances.bank.toString());
+                  }}
+                  className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 hover:bg-orange-50 transition-colors group text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white rounded-xl shadow-sm text-gray-600">
+                      <Banknote className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-gray-500 uppercase">Р/С (Банк)</div>
+                      <div className="text-xl font-black text-gray-900">{balances.bank.toLocaleString()} ₸</div>
+                    </div>
+                  </div>
+                  <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-orange-400 transition-colors" />
+                </button>
+              </div>
+            </div>
+
+            {/* Меню разделов */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <button 
+                onClick={() => setActiveTab('expenses')}
+                className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-200 transition-all group text-left"
+              >
+                <div className="h-12 w-12 bg-orange-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Wallet className="h-6 w-6 text-orange-600" />
+                </div>
+                <div className="font-black text-gray-900">Расходы</div>
+                <div className="text-xs font-bold text-gray-500">Учет трат</div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('salaries')}
+                className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-200 transition-all group text-left"
+              >
+                <div className="h-12 w-12 bg-green-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Users className="h-6 w-6 text-green-600" />
+                </div>
+                <div className="font-black text-gray-900">Зарплаты</div>
+                <div className="text-xs font-bold text-gray-500">Выплаты персоналу</div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('history')}
+                className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-200 transition-all group text-left"
+              >
+                <div className="h-12 w-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <History className="h-6 w-6 text-blue-600" />
+                </div>
+                <div className="font-black text-gray-900">История</div>
+                <div className="text-xs font-bold text-gray-500">Лог действий</div>
+              </button>
+
+              <button 
+                onClick={() => setActiveTab('settings')}
+                className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:border-orange-200 transition-all group text-left"
+              >
+                <div className="h-12 w-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Settings className="h-6 w-6 text-gray-600" />
+                </div>
+                <div className="font-black text-gray-900">Настройки</div>
+                <div className="text-xs font-bold text-gray-500">Face ID и прочее</div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'expenses' && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <ExpensesManager initialDate={today} />
+          </div>
+        )}
+
+        {activeTab === 'salaries' && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <h2 className="text-2xl font-black text-gray-900">Выплаты персоналу</h2>
+              <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-gray-200 shadow-sm">
+                <Calendar className="h-5 w-5 text-gray-400 ml-2" />
                 <input 
-                  type="number" 
-                  value={tempValue}
-                  onChange={(e) => setTempValue(e.target.value)}
-                  className="w-full p-6 bg-gray-50 rounded-3xl border-none text-3xl font-black focus:ring-2 focus:ring-purple-500" 
-                  autoFocus
+                  type="month" 
+                  value={salaryMonth}
+                  onChange={(e) => setSalaryMonth(e.target.value)}
+                  className="border-none focus:ring-0 text-sm font-bold text-gray-700 bg-transparent"
                 />
               </div>
-              <button 
+            </div>
+
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Дата</th>
+                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Сотрудник / Тип</th>
+                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider text-right">Сумма</th>
+                      <th className="px-6 py-4 text-xs font-black text-gray-500 uppercase tracking-wider">Источник</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {isLoadingSalaries ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center">
+                          <Loader2 className="h-8 w-8 text-orange-600 animate-spin mx-auto mb-2" />
+                          <div className="text-sm font-bold text-gray-500">Загрузка данных...</div>
+                        </td>
+                      </tr>
+                    ) : sortedSalaries.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-bold">
+                          Нет данных о выплатах за этот месяц
+                        </td>
+                      </tr>
+                    ) : (
+                      sortedSalaries.map((s) => (
+                        <tr key={s.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 text-sm font-bold text-gray-600">
+                            {format(parseISO(s.date), 'dd MMM', { locale: ru })}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm font-black text-gray-900">{s.title}</div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="text-sm font-black text-orange-600">{s.amount.toLocaleString()} ₸</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${
+                              s.payment_source === 'cash' 
+                                ? 'bg-blue-50 text-blue-700' 
+                                : 'bg-purple-50 text-purple-700'
+                            }`}>
+                              {s.payment_source === 'cash' ? 'Нал' : 'Р/С'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-black text-gray-900">История действий</h2>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-gray-400" />
+                <input 
+                  type="date" 
+                  value={selectedLogDate}
+                  onChange={(e) => setSelectedLogDate(e.target.value)}
+                  className="text-sm font-bold text-gray-700 border-gray-200 rounded-xl focus:ring-orange-500 focus:border-orange-500"
+                />
+                {selectedLogDate && (
+                  <button 
+                    onClick={() => setSelectedLogDate('')}
+                    className="p-1 hover:bg-gray-100 rounded-lg"
+                  >
+                    <X className="h-4 w-4 text-gray-400" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {isLoadingLogs ? (
+              <div className="text-center py-12">
+                <Loader2 className="h-8 w-8 text-orange-600 animate-spin mx-auto mb-4" />
+                <p className="text-gray-500 font-bold">Загрузка логов...</p>
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {Object.keys(groupedLogs).length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-3xl border border-gray-100">
+                    <History className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+                    <p className="text-gray-500 font-bold">Действий пока нет</p>
+                  </div>
+                ) : (
+                  Object.entries(groupedLogs)
+                    .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
+                    .map(([date, dayLogs]) => (
+                      <div key={date} className="space-y-4">
+                        <div className="flex items-center gap-4">
+                          <div className="h-px flex-1 bg-gray-100" />
+                          <span className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                            {format(parseISO(date), 'dd MMMM yyyy', { locale: ru })}
+                          </span>
+                          <div className="h-px flex-1 bg-gray-100" />
+                        </div>
+                        <div className="space-y-2">
+                          {dayLogs.map((log) => (
+                            <div key={log.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-start gap-4">
+                              <div className="mt-1">
+                                <Clock className="h-4 w-4 text-gray-400" />
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-bold text-gray-400">{log.timestamp}</span>
+                                  <span className="text-xs font-black text-orange-600 uppercase">{log.action_type}</span>
+                                </div>
+                                <div className="text-sm font-bold text-gray-900">{log.description}</div>
+                                {log.details && <div className="text-xs text-gray-500 mt-1">{log.details}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'settings' && (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300 space-y-6">
+            <h2 className="text-2xl font-black text-gray-900">Настройки</h2>
+            
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-6">
+              <div>
+                <h3 className="text-lg font-black text-gray-900 mb-2 flex items-center gap-2">
+                  <Fingerprint className="h-5 w-5 text-orange-600" />
+                  Безопасность
+                </h3>
+                <p className="text-sm text-gray-500 mb-6">
+                  Настройте биометрический вход для быстрого доступа к Хабу без ввода пароля.
+                </p>
+
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                  <div>
+                    <div className="font-black text-gray-900">Вход по Face ID</div>
+                    <div className="text-xs font-bold text-gray-500">
+                      {isFaceIdSupported 
+                        ? 'Доступно на вашем устройстве' 
+                        : 'Не поддерживается вашим браузером или устройством'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleToggleFaceId}
+                    disabled={!isFaceIdSupported}
+                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${
+                      isFaceIdEnabled ? 'bg-orange-600' : 'bg-gray-200'
+                    } ${!isFaceIdSupported ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                        isFaceIdEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-gray-100">
+                <h3 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-gray-400" />
+                  Система
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                    <span className="font-bold text-gray-700">Версия приложения</span>
+                    <span className="text-xs font-black text-gray-400 uppercase">v1.2.0</span>
+                  </div>
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                    <span className="font-bold text-gray-700">База данных</span>
+                    <span className="text-xs font-black text-green-600 uppercase">Supabase Cloud</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Модалка редактирования баланса */}
+      {editingBalance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-black text-gray-900 mb-2">
+              Изменить остаток
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Введите новую сумму для {editingBalance === 'safe' ? 'сейфа' : 'расчетного счета'}
+            </p>
+            
+            <div className="relative mb-6">
+              <input
+                type="number"
+                value={tempValue}
+                onChange={(e) => setTempValue(e.target.value)}
+                className="w-full px-4 py-4 text-2xl font-black text-center bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-orange-500 focus:ring-0 transition-colors"
+                autoFocus
+              />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-gray-400">₸</div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setEditingBalance(null)}
+                className="py-4 px-4 rounded-2xl font-black text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
                 onClick={handleBalanceSave}
                 disabled={isSaving}
-                className="w-full bg-gray-900 text-white p-6 rounded-3xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all disabled:opacity-50"
+                className="py-4 px-4 rounded-2xl font-black text-white bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-200 disabled:opacity-50 flex items-center justify-center"
               >
-                {isSaving ? <Loader2 className="animate-spin" /> : 'Сохранить'}
+                {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Сохранить'}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Analytics Block */}
-      <section className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2">
-            <TrendingUp size={14} className="text-purple-500" /> Аналитика за месяц
-          </h3>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-gray-400 uppercase">Выручка</div>
-            <div className="text-2xl font-black text-gray-900">{stats.currentMonthRevenue.toLocaleString()} ₽</div>
-          </div>
-          <div className="space-y-1 text-right">
-            <div className="text-[10px] font-bold text-gray-400 uppercase">Чистая прибыль</div>
-            <div className="text-2xl font-black text-green-600">{stats.currentMonthProfit.toLocaleString()} ₽</div>
-          </div>
-        </div>
-        <div className="h-2 bg-gray-50 rounded-full overflow-hidden flex">
-          <div 
-            className="h-full bg-purple-500" 
-            style={{ width: `${Math.min(100, (stats.currentMonthProfit / (stats.currentMonthRevenue || 1)) * 100)}%` }} 
-          />
-        </div>
-        <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-tighter text-gray-400">
-          <span>Маржинальность: {stats.currentMonthRevenue ? Math.round((stats.currentMonthProfit / stats.currentMonthRevenue) * 100) : 0}%</span>
-          <span>Неделя: {stats.currentWeekRevenue.toLocaleString()} ₽</span>
-        </div>
-      </section>
-
-      {/* Hub Grid */}
-      <div className="grid grid-cols-2 gap-4 px-1">
-        {hubItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setActiveTab(item.id as any)}
-            className="bg-white p-6 rounded-[2rem] border border-gray-100 flex flex-col items-start gap-4 transition-all active:scale-95 hover:border-purple-200 group relative overflow-hidden"
-          >
-            <div className={`${item.bg} ${item.color} p-3 rounded-2xl group-hover:scale-110 transition-transform`}>
-              <item.icon size={24} />
-            </div>
-            <div className="w-full flex justify-between items-end">
-              <span className="text-sm font-black text-gray-900 uppercase tracking-tighter leading-none">{item.name}</span>
-              <ArrowRight size={14} className="text-gray-300 group-hover:text-purple-500 transition-colors" />
-            </div>
-          </button>
-        ))}
-      </div>
     </div>
   );
 }
