@@ -21,13 +21,31 @@ import {
 } from 'lucide-react';
 import ExpensesManager from './ExpensesManager';
 import { GlobalBalances, ActionLog, Expense, DashboardSummary } from '@/types';
-import { parseISO, startOfMonth, startOfWeek, format } from 'date-fns';
+import { 
+  addMonths,
+  subMonths,
+  getYear,
+  getMonth,
+  setYear,
+  setMonth,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  isSameDay,
+  isSameMonth,
+  subDays,
+  format,
+  parseISO,
+  startOfWeek,
+  startOfMonth
+} from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { 
   getActionLogAction, 
   getExpensesByMonthAction,
   saveGlobalBalancesAction
 } from '@/app/actions';
+import Link from 'next/link';
 
 interface Props {
   today: string;
@@ -156,6 +174,8 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   const [salaries, setSalaries] = useState<Expense[]>([]);
   const [isLoadingSalaries, setIsLoadingSalaries] = useState(false);
   const [salaryMonth, setSalaryMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [viewDate, setViewDate] = useState(new Date());
+  const [showPicker, setShowPicker] = useState(false);
   
   const HUB_PASSWORD = 'OhanaBest302!';
 
@@ -212,6 +232,27 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
     });
     return groups;
   }, [logs, selectedLogDate]);
+
+  const { calendarDays } = useMemo(() => {
+    const mStart = startOfMonth(viewDate);
+    const mEnd = endOfMonth(viewDate);
+    const cStart = startOfWeek(mStart, { weekStartsOn: 1 });
+    const cEnd = endOfWeek(mEnd, { weekStartsOn: 1 });
+    
+    return {
+      calendarDays: eachDayOfInterval({ start: cStart, end: cEnd })
+    };
+  }, [viewDate]);
+
+  const years = useMemo(() => {
+    const currentYear = getYear(new Date());
+    return Array.from({ length: 5 }, (_, idx) => currentYear - 2 + idx);
+  }, []);
+
+  const monthsList = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+  ];
 
   const handleBalanceSave = async () => {
     if (!editingBalance) return;
@@ -335,193 +376,200 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Шапка */}
-      <div className="bg-white border-b border-gray-200 px-4 py-4 sticky top-0 z-30">
+      <div className="bg-white px-6 py-6 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
-              <LayoutGrid className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-gray-900 leading-none">OHANA</h1>
-              <p className="text-xs font-bold text-blue-600 tracking-tighter uppercase mt-0.5">Control Hub</p>
-            </div>
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Ohana</h1>
+          
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-bold text-gray-400">Сейф:</span>
+            <span className="text-sm font-black text-blue-600">
+              {balances.safe.toLocaleString()} ₸
+            </span>
           </div>
-          <button 
-            onClick={() => setActiveTab('menu')}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-          >
-            <X className="h-6 w-6 text-gray-400" />
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setActiveTab('history')}
+              className="p-2.5 hover:bg-gray-50 rounded-2xl transition-all active:scale-90"
+            >
+              <History className="h-6 w-6 text-gray-900" />
+            </button>
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className="p-2.5 hover:bg-gray-50 rounded-2xl transition-all active:scale-90"
+            >
+              <Settings className="h-6 w-6 text-gray-900" />
+            </button>
+          </div>
         </div>
       </div>
 
       <main className="max-w-7xl mx-auto p-4 pb-24">
         {activeTab === 'menu' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Статистика */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-green-50 rounded-lg text-green-600">
-                    <TrendingUp className="h-5 w-5" />
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Аналитика */}
+            <button 
+              onClick={() => setActiveTab('analytics')}
+              className="w-full bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100 group text-left relative overflow-hidden transition-all active:scale-[0.98]"
+            >
+              <div className="relative z-10">
+                <div className="flex justify-between items-start mb-12">
+                  <div className="h-48 w-full relative">
+                    {/* SVG Wave chart */}
+                    <svg className="w-full h-full overflow-visible" viewBox="0 0 400 150">
+                      <path 
+                        d="M 0 100 Q 25 20, 50 80 T 100 40 T 150 90 T 200 50 T 250 80 T 300 30 T 350 70 T 400 40" 
+                        fill="none" 
+                        stroke="black" 
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        className="opacity-90"
+                      />
+                    </svg>
                   </div>
-                  <span className="text-sm font-bold text-gray-500">Выручка недели</span>
                 </div>
-                <div className="text-2xl font-black text-gray-900">
-                  {stats.currentWeekRevenue.toLocaleString()} ₸
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
-                    <BarChart3 className="h-5 w-5" />
-                  </div>
-                  <span className="text-sm font-bold text-gray-500">Выручка месяца</span>
-                </div>
-                <div className="text-2xl font-black text-gray-900">
-                  {stats.currentMonthRevenue.toLocaleString()} ₸
-                </div>
-              </div>
-              <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
-                    <Banknote className="h-5 w-5" />
-                  </div>
-                  <span className="text-sm font-bold text-gray-500">Прибыль месяца</span>
-                </div>
-                <div className="text-2xl font-black text-purple-600">
-                  {stats.currentMonthProfit.toLocaleString()} ₸
-                </div>
-              </div>
-            </div>
 
-            {/* Балансы */}
-            <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
-                  <Wallet className="h-5 w-5 text-blue-600" />
-                  Текущие остатки
-                </h3>
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900 mb-1">Аналитика</h3>
+                    <div className="text-sm font-bold text-gray-500 mb-1">
+                      Прибыль месяца: <span className="text-gray-900">{stats.currentMonthProfit.toLocaleString()} ₸</span>
+                    </div>
+                    <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
+                      {format(subDays(new Date(), 7), 'dd.MM.yy')} - {format(new Date(), 'dd.MM.yy')}
+                    </div>
+                  </div>
+                  <div className="h-10 w-10 bg-black rounded-full flex items-center justify-center text-white shadow-lg shadow-gray-200 group-hover:scale-110 transition-transform">
+                    <ArrowRight className="h-5 w-5" />
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <button
-                  onClick={() => {
-                    setEditingBalance('safe');
-                    setTempValue(balances.safe.toString());
-                  }}
-                  className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 hover:bg-blue-50 transition-colors group text-left"
+            </button>
+
+            {/* Панель управления */}
+            <div className="space-y-4">
+              <h3 className="text-xl font-black text-gray-900 px-2">Панель управления</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <button 
+                  onClick={() => setActiveTab('expenses')}
+                  className="bg-white aspect-square rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-3 hover:border-blue-200 transition-all active:scale-95 group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-xl shadow-sm text-gray-600">
-                      <Lock className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase">Сейф</div>
-                      <div className="text-xl font-black text-gray-900">{balances.safe.toLocaleString()} ₸</div>
-                    </div>
+                  <div className="p-3 bg-blue-50 rounded-2xl text-blue-600 group-hover:scale-110 transition-transform">
+                    <Wallet className="h-6 w-6" />
                   </div>
-                  <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-blue-400 transition-colors" />
+                  <span className="text-sm font-black text-gray-900">Расходы</span>
                 </button>
-                <button
-                  onClick={() => {
-                    setEditingBalance('bank');
-                    setTempValue(balances.bank.toString());
-                  }}
-                  className="flex items-center justify-between p-4 rounded-2xl bg-gray-50 hover:bg-blue-50 transition-colors group text-left"
+                <button 
+                  onClick={() => setActiveTab('salaries')}
+                  className="bg-white aspect-square rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-3 hover:border-blue-200 transition-all active:scale-95 group"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white rounded-xl shadow-sm text-gray-600">
-                      <Banknote className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-gray-500 uppercase">Р/С (Банк)</div>
-                      <div className="text-xl font-black text-gray-900">{balances.bank.toLocaleString()} ₸</div>
-                    </div>
+                  <div className="p-3 bg-green-50 rounded-2xl text-green-600 group-hover:scale-110 transition-transform">
+                    <Users className="h-6 w-6" />
                   </div>
-                  <ArrowRight className="h-5 w-5 text-gray-300 group-hover:text-blue-400 transition-colors" />
+                  <span className="text-sm font-black text-gray-900">Зарплаты</span>
+                </button>
+                <button 
+                  onClick={() => setActiveTab('agent')}
+                  className="bg-white aspect-square rounded-[2rem] shadow-sm border border-gray-100 flex flex-col items-center justify-center gap-3 hover:border-blue-200 transition-all active:scale-95 group"
+                >
+                  <div className="p-3 bg-purple-50 rounded-2xl text-purple-600 group-hover:scale-110 transition-transform">
+                    <MessageSquare className="h-6 w-6" />
+                  </div>
+                  <span className="text-sm font-black text-gray-900">Агент</span>
                 </button>
               </div>
             </div>
 
-            {/* Меню разделов */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <button 
-                onClick={() => setActiveTab('expenses')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Wallet className="h-6 w-6 text-blue-600" />
+            {/* Мини Календарь (как в Дашборде) */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <button 
+                  onClick={() => setShowPicker(!showPicker)}
+                  className="flex items-center gap-2 text-gray-900 text-sm uppercase font-black tracking-widest hover:text-blue-600 transition-colors"
+                >
+                  <Calendar className="h-[14px] w-[14px] text-blue-500" />
+                  {format(viewDate, 'LLLL yyyy', { locale: ru })}
+                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setViewDate(subMonths(viewDate, 1))} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <ArrowRight className="h-4 w-4 rotate-180 text-gray-400" />
+                  </button>
+                  <button onClick={() => setViewDate(addMonths(viewDate, 1))} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                    <ArrowRight className="h-4 w-4 text-gray-400" />
+                  </button>
                 </div>
-                <div className="font-black text-gray-900">Расходы</div>
-                <div className="text-xs font-bold text-gray-500">Учет трат</div>
-              </button>
+              </div>
 
-              <button 
-                onClick={() => setActiveTab('salaries')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-green-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Users className="h-6 w-6 text-green-600" />
+              {showPicker && (
+                <div className="bg-white p-4 rounded-[2rem] shadow-xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    {years.map(y => (
+                      <button 
+                        key={y}
+                        onClick={() => setViewDate(setYear(viewDate, y))}
+                        className={`py-2 rounded-xl text-xs font-black ${getYear(viewDate) === y ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400'}`}
+                      >
+                        {y}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {monthsList.map((m, i) => (
+                      <button 
+                        key={m}
+                        onClick={() => {
+                          setViewDate(setMonth(viewDate, i));
+                          setShowPicker(false);
+                        }}
+                        className={`py-2 rounded-xl text-[10px] font-black uppercase ${getMonth(viewDate) === i ? 'bg-blue-600 text-white' : 'bg-gray-50 text-gray-400'}`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="font-black text-gray-900">Зарплаты</div>
-                <div className="text-xs font-bold text-gray-500">Выплаты персоналу</div>
-              </button>
+              )}
 
-              <button 
-                onClick={() => setActiveTab('history')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <History className="h-6 w-6 text-indigo-600" />
+              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100">
+                <div className="grid grid-cols-7 gap-1 mb-4">
+                  {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(d => (
+                    <div key={d} className="text-[10px] font-black text-gray-300 text-center uppercase">{d}</div>
+                  ))}
                 </div>
-                <div className="font-black text-gray-900">История</div>
-                <div className="text-xs font-bold text-gray-500">Лог действий</div>
-              </button>
+                <div className="grid grid-cols-7 gap-1">
+                  {calendarDays.map((day) => {
+                    const dStr = format(day, 'yyyy-MM-dd');
+                    const summary = summaries.find(s => s.date === dStr);
+                    const isCurrentMonth = isSameMonth(day, viewDate);
+                    const isToday = isSameDay(day, new Date());
 
-              <button 
-                onClick={() => setActiveTab('analytics')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <BarChart3 className="h-6 w-6 text-purple-600" />
+                    return (
+                      <Link
+                        key={dStr}
+                        href={`/day/${dStr}`}
+                        className={`
+                          aspect-square rounded-2xl p-1 flex flex-col justify-between border transition-all active:scale-90 relative overflow-hidden
+                          ${isCurrentMonth ? 'bg-white border-gray-50' : 'bg-gray-50/50 border-transparent opacity-30'}
+                          ${isToday ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
+                          ${summary ? 'hover:border-blue-200' : ''}
+                        `}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className={`text-[10px] font-bold ${isToday ? 'text-blue-600' : 'text-gray-400'}`}>
+                            {format(day, 'd')}
+                          </span>
+                        </div>
+                        {summary && isCurrentMonth && (
+                          <div className="text-[7px] font-black text-green-600 leading-none truncate">
+                            {Math.round(summary.total_revenue / 1000)}k
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
                 </div>
-                <div className="font-black text-gray-900">Аналитика</div>
-                <div className="text-xs font-bold text-gray-500">Графики и отчеты</div>
-              </button>
-
-              <button 
-                onClick={() => setActiveTab('calendar')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Calendar className="h-6 w-6 text-rose-600" />
-                </div>
-                <div className="font-black text-gray-900">Календарь</div>
-                <div className="text-xs font-bold text-gray-500">События и смены</div>
-              </button>
-
-              <button 
-                onClick={() => setActiveTab('agent')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-cyan-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <MessageSquare className="h-6 w-6 text-cyan-600" />
-                </div>
-                <div className="font-black text-gray-900">Агент</div>
-                <div className="text-xs font-bold text-gray-500">ИИ Помощник</div>
-              </button>
-
-              <button 
-                onClick={() => setActiveTab('settings')}
-                className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 hover:border-blue-200 transition-all group text-left"
-              >
-                <div className="h-12 w-12 bg-gray-50 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <Settings className="h-6 w-6 text-gray-600" />
-                </div>
-                <div className="font-black text-gray-900">Настройки</div>
-                <div className="text-xs font-bold text-gray-500">Face ID и прочее</div>
-              </button>
-            </div>
+              </div>
+            </section>
           </div>
         )}
 
