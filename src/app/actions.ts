@@ -376,30 +376,28 @@ export async function deleteItemAction(sheetName: string, id: string, date: stri
 export async function getGlobalBalancesAction() {
   try {
     const balances = await db.getGlobalBalances();
+    const summaries = await db.getDashboardSummary();
     
-    // Если сейф 0, пробуем вычислить его из последней смены
-    if (balances.safe === 0) {
-      const summaries = await db.getDashboardSummary();
-      if (summaries.length > 0) {
-        // Берем последнюю дату, где есть данные
-        const lastDate = summaries[0].date;
-        const lastDayData = await db.getFullDay(lastDate);
+    if (summaries.length > 0) {
+      // Берем самую последнюю смену для получения актуального состояния сейфа
+      const lastDate = summaries[0].date;
+      const lastDayData = await db.getFullDay(lastDate);
+      
+      if (lastDayData.shift) {
+        const startCash = lastDayData.shift.start_cash || 0;
+        const safeTrans = lastDayData.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
+        const cashRevenue = lastDayData.financials?.revenue_cash || 0;
+        const cashExpenses = lastDayData.expenses
+          ?.filter(e => e.payment_source === 'cash')
+          ?.reduce((sum, e) => sum + e.amount, 0) || 0;
         
-        if (lastDayData.shift) {
-          const startCash = lastDayData.shift.start_cash || 0;
-          const safeTrans = lastDayData.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
-          const cashRevenue = lastDayData.financials?.revenue_cash || 0;
-          const cashExpenses = lastDayData.expenses
-            ?.filter(e => e.payment_source === 'cash')
-            ?.reduce((sum, e) => sum + e.amount, 0) || 0;
-          
-          const currentSafe = startCash + safeTrans + cashRevenue - cashExpenses;
-          
-          if (currentSafe !== 0) {
-            balances.safe = currentSafe;
-            // Сохраняем вычисленный баланс, чтобы в следующий раз не пересчитывать
-            await db.saveGlobalBalances({ safe: currentSafe });
-          }
+        const currentSafeCalculated = startCash + safeTrans + cashRevenue - cashExpenses;
+        
+        // Если вычисленное значение отличается от сохраненного в конфиге, 
+        // приоритет отдаем данным из последней смены (самые актуальные)
+        if (balances.safe !== currentSafeCalculated) {
+          balances.safe = currentSafeCalculated;
+          await db.saveGlobalBalances({ safe: currentSafeCalculated });
         }
       }
     }

@@ -17,14 +17,16 @@ import {
   History,
   X,
   Loader2,
-  Clock
+  Clock,
+  CircleDollarSign,
+  User
 } from 'lucide-react';
 import ExpensesManager from './ExpensesManager';
 import RecurringExpensesList from './RecurringExpensesList';
-import { RecurringExpense, GlobalBalances, ActionLog } from '@/types';
-import { parseISO, startOfMonth, startOfWeek, format } from 'date-fns';
+import { RecurringExpense, GlobalBalances, ActionLog, Expense } from '@/types';
+import { parseISO, startOfMonth, startOfWeek, format, isWithinInterval } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { saveGlobalBalancesAction, getActionLogsAction } from '@/app/actions';
+import { saveGlobalBalancesAction, getActionLogsAction, getFullDayAction } from '@/app/actions';
 
 interface Props {
   today: string;
@@ -44,10 +46,13 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   const [logs, setLogs] = useState<ActionLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
   const [selectedLogDate, setSelectedLogDate] = useState<string>('');
+  const [salaries, setSalaries] = useState<Expense[]>([]);
+  const [isLoadingSalaries, setIsLoadingSalaries] = useState(false);
+  const [salaryMonth, setSalaryMonth] = useState(format(new Date(), 'yyyy-MM'));
   
   const HUB_PASSWORD = '123';
 
-  const fetchLogs = async () => {
+  const loadLogs = async () => {
     setIsLoadingLogs(true);
     try {
       const data = await getActionLogsAction();
@@ -59,11 +64,43 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
     }
   };
 
+  const loadSalaries = async () => {
+    setIsLoadingSalaries(true);
+    try {
+      // Собираем все зарплаты за выбранный месяц из summaries
+      const monthStart = startOfMonth(parseISO(`${salaryMonth}-01`));
+      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
+      
+      const daysInMonth = summaries.filter(s => {
+        const d = parseISO(s.date);
+        return isWithinInterval(d, { start: monthStart, end: monthEnd });
+      });
+
+      const allSalaries: Expense[] = [];
+      
+      for (const day of daysInMonth) {
+        const dayData = await getFullDayAction(day.date);
+        const daySalaries = dayData.expenses.filter(e => 
+          e.title.startsWith('ЗП ') || e.title.startsWith('Премия ')
+        );
+        allSalaries.push(...daySalaries);
+      }
+
+      setSalaries(allSalaries.sort((a, b) => b.date.localeCompare(a.date)));
+    } catch (error) {
+      console.error('Error loading salaries:', error);
+    } finally {
+      setIsLoadingSalaries(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'history') {
-      fetchLogs();
+      loadLogs();
+    } else if (activeTab === 'salaries') {
+      loadSalaries();
     }
-  }, [activeTab]);
+  }, [activeTab, selectedLogDate, salaryMonth]);
 
   const groupedLogs = useMemo(() => {
     const groups: { [key: string]: ActionLog[] } = {};
@@ -282,6 +319,77 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
           <p className="text-center text-[9px] font-black text-gray-300 uppercase tracking-widest mt-8">
             Все воздействия с Ohana Финанс сохраняются здесь
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeTab === 'salaries') {
+    return (
+      <div className="space-y-8 pb-20">
+        <button 
+          onClick={() => setActiveTab('menu')}
+          className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
+        >
+          <LayoutGrid size={14} /> Назад в Хаб
+        </button>
+
+        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 min-h-[500px] flex flex-col">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Зарплаты</h2>
+            <input 
+              type="month" 
+              value={salaryMonth}
+              onChange={(e) => setSalaryMonth(e.target.value)}
+              className="text-xs font-bold uppercase p-2 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+
+          {isLoadingSalaries ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
+              <Loader2 className="animate-spin" size={32} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Загрузка данных...</span>
+            </div>
+          ) : salaries.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3 italic">
+              <CircleDollarSign size={48} className="opacity-20" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Выплат не найдено</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {salaries.map((salary) => (
+                <div key={salary.id} className="bg-gray-50/50 p-4 rounded-3xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-md transition-all duration-300">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-2xl ${salary.title.startsWith('Премия') ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>
+                      {salary.title.startsWith('Премия') ? <TrendingUp size={20} /> : <User size={20} />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-black text-gray-900 uppercase tracking-tight">
+                        {salary.title.replace('ЗП ', '').replace('Премия ', '')}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+                          {format(parseISO(salary.date), 'd MMMM', { locale: ru })}
+                        </span>
+                        <span className="text-gray-200 text-[10px]">•</span>
+                        <span className="text-[10px] font-black text-purple-500 uppercase tracking-tighter">
+                          {salary.title.startsWith('Премия') ? 'Премия' : 'Зарплата'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-black text-gray-900">
+                      {salary.amount.toLocaleString()} ₽
+                    </div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                      {salary.payment_source === 'cash' ? 'Наличные' : 'Р/Счет'}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
