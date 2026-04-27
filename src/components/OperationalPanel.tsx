@@ -14,10 +14,9 @@ import {
   deleteItemAction,
   deleteDayAction 
 } from '@/app/actions';
-import { Trash2, Users, CreditCard, Banknote, Coffee, Car, X, Save, Percent, Loader2, Wallet, ArrowLeft, Lock, Unlock, UserCheck, WalletCards, ShieldCheck, Pencil } from 'lucide-react';
+import { Trash2, Banknote, Coffee, Car, X, Percent, Loader2, Wallet, Lock, UserCheck, WalletCards, ShieldCheck, Pencil } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { SafeTransaction } from '@/types';
-import Link from 'next/link';
 
 interface Props {
   initialData: FullDayData;
@@ -33,7 +32,6 @@ export default function OperationalPanel({ initialData, date }: Props) {
   const [salaryPaymentSource, setSalaryPaymentSource] = useState<'cash' | 'bank'>('cash');
   const salaryPeople = ['Влада', 'Дима', 'Равчик', 'Артем', 'Ноутнейм'];
   const [isSaving, setIsSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
   const [isLocked, setIsLocked] = useState(!isToday);
   const [password, setPassword] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
@@ -82,16 +80,12 @@ export default function OperationalPanel({ initialData, date }: Props) {
       start_cash: (updates.start_cash ?? data.shift?.start_cash) || 0, 
       end_cash: 0
     };
-    setSaveStatus('saving');
     const result = await saveShiftAction(newShift);
     if (result.success) {
       setData(prev => ({ ...prev, shift: newShift }));
-      setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
     } else {
       console.error('Save shift error:', result.error);
       alert('Ошибка при сохранении смены: ' + result.error);
-      setSaveStatus('idle');
     }
   };
 
@@ -100,20 +94,16 @@ export default function OperationalPanel({ initialData, date }: Props) {
     const revCard = updates.revenue_card ?? data.financials?.revenue_card ?? 0;
     const newFin = calculateFinancials(revCash, revCard, data.expenses);
     
-    setSaveStatus('saving');
     try {
       const result = await saveFinancialsAction(newFin);
       if (result.success) {
         setData(prev => ({ ...prev, financials: newFin }));
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
       } else {
         throw new Error(result.error);
       }
     } catch (e: any) {
       console.error('Save financials error:', e);
       alert('Ошибка при сохранении финансов: ' + (e.message || e));
-      setSaveStatus('idle');
     }
   };
 
@@ -399,7 +389,7 @@ export default function OperationalPanel({ initialData, date }: Props) {
   };
 
   return (
-    <div className="space-y-6 pb-32 max-w-lg mx-auto px-4 pt-4">
+    <div className="space-y-6 pb-32 max-w-lg mx-auto">
       {/* Modals - Optimized for Mobile Touch */}
       {modal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -525,107 +515,83 @@ export default function OperationalPanel({ initialData, date }: Props) {
               ) : modal === 'salary_amount' ? (
                 <div className="space-y-4">
                   <div className="text-center">
-                    <span className="text-lg font-black text-purple-600">
-                      {salaryType === 'salary' ? 'Зарплата' : 'Премия'}
-                    </span>
-                    <span className="text-gray-400 mx-2">•</span>
-                    <span className="text-lg font-bold">{salaryPerson}</span>
+                    <p className="text-[10px] uppercase font-black text-gray-400 tracking-widest mb-1">{salaryType === 'salary' ? 'Сумма зарплаты' : 'Сумма премии'}</p>
+                    <p className="text-xl font-black text-gray-900">{salaryPerson}</p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
-                    <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required autoFocus />
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Источник выплаты</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSalaryPaymentSource('cash')}
+                          className={`p-4 rounded-2xl text-xs font-black uppercase transition-all ${salaryPaymentSource === 'cash' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-400'}`}
+                        >
+                          Наличные
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSalaryPaymentSource('bank')}
+                          className={`p-4 rounded-2xl text-xs font-black uppercase transition-all ${salaryPaymentSource === 'bank' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-400'}`}
+                        >
+                          Карта (Р/С)
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                      <input 
+                        name="amount" 
+                        type="number" 
+                        placeholder="0" 
+                        className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center" 
+                        required 
+                        autoFocus 
+                      />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setSalaryPaymentSource('cash')}
-                      className={`p-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border-2 ${
-                        salaryPaymentSource === 'cash' 
-                          ? 'bg-green-50 border-green-500 text-green-700' 
-                          : 'bg-gray-50 border-transparent text-gray-500'
-                      }`}
-                    >
-                      <Banknote size={20} />
-                      <span className="text-xs font-bold">Наличка</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSalaryPaymentSource('bank')}
-                      className={`p-4 rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-all border-2 ${
-                        salaryPaymentSource === 'bank' 
-                          ? 'bg-blue-50 border-blue-500 text-blue-700' 
-                          : 'bg-gray-50 border-transparent text-gray-500'
-                      }`}
-                    >
-                      <CreditCard size={20} />
-                      <span className="text-xs font-bold">Р/С</span>
-                    </button>
-                  </div>
-                  <button type="submit" disabled={isSaving} className="w-full bg-purple-600 text-white p-5 rounded-2xl font-black uppercase tracking-widest flex justify-center items-center gap-2 active:scale-95 transition-all">
-                    {isSaving ? <Loader2 className="animate-spin" /> : 'Подтвердить'}
-                  </button>
                 </div>
-              ) : modal === 'expense' ? (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-black text-gray-400 ml-1 tracking-wider">Тип платежа</label>
-                      <select name="type" className="w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold border-none appearance-none">
-                        <option value="variable">Переменный</option>
-                        <option value="fixed">Постоянный</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] uppercase font-black text-gray-400 ml-1 tracking-wider">Источник</label>
-                      <select name="payment_source" className="w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold border-none appearance-none">
-                        <option value="cash">Наличка зав.</option>
-                        <option value="bank">Расчетный счет</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Название</label>
-                    <input name="title" placeholder="На что потрачено?" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
-                    <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
-                  </div>
-                </>
               ) : (
                 <>
-                  {(modal !== 'staff_hookah' && modal !== 'taxi') && (
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Имя / Кто</label>
-                      <input name="person" placeholder="..." className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required autoFocus />
-                    </div>
-                  )}
-                  {(modal === 'staff_hookah' || modal === 'staff') && (
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Количество</label>
-                      <input name="count" type="number" placeholder="1" defaultValue="1" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
-                    </div>
-                  )}
-                  {modal === 'taxi' && (
-                    <div className="space-y-1">
-                      <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Цена за ед. (₽)</label>
-                      <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">
+                      {modal === 'staff_hookah' ? 'Количество кальянов' : modal === 'taxi' ? 'Сумма такси (₽)' : modal === 'staff' ? 'Количество' : 'Название расхода'}
+                    </label>
+                    <input 
+                      name={modal === 'expense' ? 'title' : modal === 'staff_hookah' || modal === 'staff' ? 'count' : 'amount'} 
+                      type={modal === 'expense' ? 'text' : 'number'} 
+                      placeholder={modal === 'expense' ? 'Напр: Хозтовары' : '0'} 
+                      className="w-full p-5 bg-gray-50 rounded-2xl border-none text-2xl font-black text-center" 
+                      required 
+                      autoFocus 
+                    />
+                  </div>
+                  {modal === 'expense' && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма (₽)</label>
+                          <input name="amount" type="number" placeholder="0" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Тип</label>
+                          <select name="type" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-bold appearance-none">
+                            <option value="variable">Переменный</option>
+                            <option value="fixed">Постоянный</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Источник</label>
+                        <select name="payment_source" className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-bold appearance-none">
+                          <option value="cash">Наличные</option>
+                          <option value="bank">Карта (Р/С)</option>
+                        </select>
+                      </div>
+                    </>
                   )}
                   {modal === 'safe_manual' && (
                     <>
-                      <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Пароль администратора</label>
-                        <input 
-                          type="password" 
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="••••" 
-                          className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" 
-                          required 
-                          autoFocus
-                        />
-                      </div>
                       <div className="space-y-1">
                         <label className="text-[10px] uppercase font-bold text-gray-400 ml-1">Сумма в сейфе (₽)</label>
                         <input name="amount" type="number" placeholder="0" defaultValue={data.shift?.start_cash} className="w-full p-4 bg-gray-50 rounded-2xl border-none text-lg font-bold" required />
@@ -655,84 +621,87 @@ export default function OperationalPanel({ initialData, date }: Props) {
         </div>
       )}
 
-      {/* New Header */}
-      <header className="flex justify-between items-center px-1">
-        <div className="flex items-baseline gap-4">
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Смена</h1>
-          <div className="flex items-center gap-1">
+      {/* New Header - Hub Style */}
+      <div className="bg-gray-50/50 backdrop-blur-md px-6 py-4 sticky top-0 z-30 transition-all border-b border-gray-100">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-black text-gray-900 tracking-tight">Смена</h1>
+          
+          <div className="flex items-center gap-1.5">
             <span className="text-xs font-bold text-gray-400">Сейф:</span>
-            <span className="text-xs font-black text-emerald-500">
-              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()}
+            <span className="text-sm font-black text-blue-600">
+              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()} ₽
             </span>
           </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => isLocked ? setModal('password') : setIsLocked(true)} 
-            className="p-2 text-gray-900 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <Pencil size={20} />
-          </button>
-          <button 
-            onClick={() => setModal('delete_confirm')}
-            className="p-2 text-gray-900 hover:bg-red-50 hover:text-red-500 rounded-full transition-colors"
-          >
-            <Trash2 size={20} />
-          </button>
-        </div>
-      </header>
 
-      {/* Block: Персонал и касса */}
-      <section className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-8 relative overflow-hidden border border-gray-50">
-        <div className="flex justify-between items-center">
-          <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] opacity-30">Персонал и касса</div>
-          <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">
-            {format(parseISO(date), 'dd MMMM', { locale: ru })}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => isLocked ? setModal('password') : setIsLocked(true)} 
+              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100"
+            >
+              <Pencil className="h-5 w-5 text-gray-900" />
+            </button>
+            <button 
+              onClick={() => setModal('delete_confirm')}
+              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100 group"
+            >
+              <Trash2 className="h-5 w-5 text-gray-900 group-hover:text-red-500 transition-colors" />
+            </button>
           </div>
         </div>
-        
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Сотрудники</label>
-            <input 
-              placeholder="Имена через запятую" 
-              className="w-full p-5 bg-gray-50/50 rounded-2xl text-sm border-none focus:ring-2 focus:ring-gray-100 font-bold placeholder:text-gray-200 transition-all"
-              defaultValue={data.shift?.staff.join(', ')}
-              disabled={isLocked}
-              onBlur={e => handleSaveShift({ staff: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
-            />
+      </div>
+
+      <div className="px-4 space-y-6 pt-2">
+        {/* Block: Персонал и касса */}
+        <section className="bg-white rounded-[2.5rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-5 relative overflow-hidden border border-gray-50">
+          <div className="flex justify-between items-center">
+            <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] opacity-30">Персонал и касса</div>
+            <div className="text-[10px] text-gray-300 font-bold uppercase tracking-widest">
+              {format(parseISO(date), 'dd MMMM', { locale: ru })}
+            </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Сотрудники</label>
               <input 
-                type="number" 
-                inputMode="decimal"
-                placeholder="0"
-                className="w-full p-5 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                placeholder="Имена через запятую" 
+                className="w-full p-4 bg-gray-50/50 rounded-2xl text-sm border-none focus:ring-2 focus:ring-gray-100 font-bold placeholder:text-gray-200 transition-all"
+                defaultValue={data.shift?.staff.join(', ')}
                 disabled={isLocked}
-                value={data.financials?.revenue_cash || ''} 
-                onChange={e => handleRevenueChange('cash', e.target.value)}
-                onBlur={e => handleSaveFin({ revenue_cash: parseFloat(e.target.value) || 0 })} 
+                onBlur={e => handleSaveShift({ staff: e.target.value.split(',').map(s => s.trim()).filter(Boolean) })}
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
-              <input 
-                type="number" 
-                inputMode="decimal"
-                placeholder="0"
-                className="w-full p-5 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
-                disabled={isLocked}
-                value={data.financials?.revenue_card || ''} 
-                onChange={e => handleRevenueChange('card', e.target.value)}
-                onBlur={e => handleSaveFin({ revenue_card: parseFloat(e.target.value) || 0 })} 
-              />
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Наличные (₽)</label>
+                <input 
+                  type="number" 
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                  disabled={isLocked}
+                  value={data.financials?.revenue_cash || ''} 
+                  onChange={e => handleRevenueChange('cash', e.target.value)}
+                  onBlur={e => handleSaveFin({ revenue_cash: parseFloat(e.target.value) || 0 })} 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-gray-400 ml-1 tracking-widest">Карта (₽)</label>
+                <input 
+                  type="number" 
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="w-full p-4 bg-gray-50/50 rounded-2xl text-lg border-none focus:ring-2 focus:ring-gray-100 font-black placeholder:text-gray-200 transition-all"
+                  disabled={isLocked}
+                  value={data.financials?.revenue_card || ''} 
+                  onChange={e => handleRevenueChange('card', e.target.value)}
+                  onBlur={e => handleSaveFin({ revenue_card: parseFloat(e.target.value) || 0 })} 
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
       {/* Block: Панель управления */}
       <section className="space-y-4">
@@ -853,32 +822,17 @@ export default function OperationalPanel({ initialData, date }: Props) {
           </div>
         </div>
       </section>
-
-      {/* Optimized Floating Bottom Bar */}
-      {!isLocked && (
-        <div className="fixed bottom-6 left-4 right-4 z-50 animate-in slide-in-from-bottom-10 duration-500">
-          <button 
-            onClick={() => handleSaveFin()}
-            disabled={saveStatus === 'saving'}
-            className={`w-full p-6 rounded-[2.5rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-[0_20px_40px_rgba(0,0,0,0.1)] active:scale-95 transition-all ${
-              saveStatus === 'saved' ? 'bg-emerald-500 text-white' : 'bg-gray-900 text-white'
-            }`}
-          >
-            {saveStatus === 'saving' ? <Loader2 className="animate-spin" size="24" /> : saveStatus === 'saved' ? <ShieldCheck size={24} /> : <Save size={24} />}
-            {saveStatus === 'saving' ? 'Сохранение...' : saveStatus === 'saved' ? 'Сохранено' : 'Подтвердить смену'}
-          </button>
-        </div>
-      )}
-
-      {/* Lock Indicator for viewing */}
-      {isLocked && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="bg-white/80 backdrop-blur-md px-6 py-3 rounded-full border border-gray-100 shadow-xl flex items-center gap-2">
-            <Lock size={14} className="text-amber-500" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Только чтение</span>
-          </div>
-        </div>
-      )}
     </div>
-  );
+
+    {/* Lock Indicator for viewing */}
+    {isLocked && (
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="bg-white/80 backdrop-blur-md px-6 py-3 rounded-full border border-gray-100 shadow-xl flex items-center gap-2">
+          <Lock size={14} className="text-amber-500" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Только чтение</span>
+        </div>
+      </div>
+    )}
+  </div>
+);
 }
