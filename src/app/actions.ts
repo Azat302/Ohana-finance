@@ -190,7 +190,12 @@ export async function paySalariesAction(expenseIds: string[]) {
       .update({ status: 'paid' })
       .in('id', expenseIds);
 
-    if (updateError) throw updateError;
+    if (updateError) {
+      if ((updateError as any).code === '42703') {
+        throw new Error('Колонка "status" отсутствует в таблице "expenses". Пожалуйста, добавьте её в Supabase (тип text, значение по умолчанию NULL).');
+      }
+      throw updateError;
+    }
 
     // 3. Update bank balance
     const { data: configData, error: configError } = await supabase
@@ -221,9 +226,10 @@ export async function paySalariesAction(expenseIds: string[]) {
 
     revalidatePath('/hub');
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error('paySalariesAction error:', error);
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    const errorMessage = error?.message || error?.details || String(error);
+    return { success: false, error: errorMessage };
   }
 }
 

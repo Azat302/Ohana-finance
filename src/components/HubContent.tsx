@@ -779,8 +779,33 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                 {isSelectionMode ? 'Отмена' : 'Выбрать'}
               </button>
               
-              {/* Optional right button if needed in future */}
-              <div />
+              {selectedSalaries.length > 0 && (
+                <button 
+                  onClick={async () => {
+                    if (isPaying) return;
+                    setIsPaying(true);
+                    try {
+                      const result = await paySalariesAction(selectedSalaries);
+                      if (result.success) {
+                        await loadSalaries();
+                        setSelectedSalaries([]);
+                        setIsSelectionMode(false);
+                      } else {
+                        alert('Ошибка при оплате: ' + (typeof result.error === 'object' ? JSON.stringify(result.error) : result.error));
+                      }
+                    } catch (err) {
+                      console.error('Payment error:', err);
+                      alert('Произошла ошибка при обработке платежа');
+                    } finally {
+                      setIsPaying(false);
+                    }
+                  }}
+                  disabled={isPaying}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-full text-sm font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-lg"
+                >
+                  {isPaying ? <Loader2 className="h-4 w-4 animate-spin" /> : `Оплатить ${salaries.filter(s => selectedSalaries.includes(s.id)).reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽`}
+                </button>
+              )}
             </div>
 
             {/* Floating Payment Bar */}
@@ -789,7 +814,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                 <div className="bg-gray-900 text-white px-6 py-4 rounded-[2rem] shadow-2xl flex items-center gap-6 border border-white/10 backdrop-blur-md bg-opacity-90">
                   <div className="flex flex-col">
                     <span className="text-[8px] font-black uppercase text-white/40 tracking-widest leading-none mb-1">К оплате ({selectedSalaries.length})</span>
-                    <span className="text-lg font-black leading-none">
+                    <span className="text-base font-black leading-none">
                       {salaries.filter(s => selectedSalaries.includes(s.id)).reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
                     </span>
                   </div>
@@ -804,7 +829,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
                           setSelectedSalaries([]);
                           setIsSelectionMode(false);
                         } else {
-                          alert('Ошибка при оплате: ' + result.error);
+                          alert('Ошибка при оплате: ' + (typeof result.error === 'object' ? JSON.stringify(result.error) : result.error));
                         }
                       } catch (err) {
                         console.error('Payment error:', err);
