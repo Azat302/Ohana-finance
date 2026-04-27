@@ -44,7 +44,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
 
   useEffect(() => {
     // Check for Face ID support
-    if (window.PublicKeyCredential) {
+    if (typeof window !== 'undefined' && window.PublicKeyCredential) {
       setIsFaceIdSupported(true);
       const enabled = localStorage.getItem('faceIdEnabled') === 'true';
       setIsFaceIdEnabled(enabled);
@@ -60,6 +60,8 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
     }
 
     try {
+      if (typeof window === 'undefined') return;
+
       const challenge = new Uint8Array(32);
       window.crypto.getRandomValues(challenge);
 
@@ -102,6 +104,7 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
 
   const handleFaceIdAuth = async () => {
     try {
+      if (typeof window === 'undefined') return;
       const credentialIdB64 = localStorage.getItem('faceIdCredentialId');
       if (!credentialIdB64) return;
 
@@ -216,8 +219,10 @@ export default function HubContent({ today, summaries, initialBalances }: Props)
   };
 
   const stats = useMemo(() => {
+    if (!summaries) return { currentWeekRevenue: 0, currentMonthRevenue: 0, currentMonthProfit: 0 };
+    
     const now = new Date();
-    const activeSummaries = summaries.filter(s => s.total_revenue > 0 || s.profit !== 0);
+    const activeSummaries = Array.isArray(summaries) ? summaries.filter(s => s && (s.total_revenue > 0 || s.profit !== 0)) : [];
     
     const monday = startOfWeek(now, { weekStartsOn: 1 });
     const currentWeekRevenue = activeSummaries
