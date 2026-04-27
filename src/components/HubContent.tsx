@@ -67,7 +67,6 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
   const loadSalaries = async () => {
     setIsLoadingSalaries(true);
     try {
-      // Собираем все зарплаты за выбранный месяц из summaries
       const monthStart = startOfMonth(parseISO(`${salaryMonth}-01`));
       const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
       
@@ -76,15 +75,16 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
         return isWithinInterval(d, { start: monthStart, end: monthEnd });
       });
 
-      const allSalaries: Expense[] = [];
-      
-      for (const day of daysInMonth) {
-        const dayData = await getFullDayAction(day.date);
-        const daySalaries = dayData.expenses.filter(e => 
+      // Параллельная загрузка данных для всех дней месяца
+      const results = await Promise.all(
+        daysInMonth.map(day => getFullDayAction(day.date))
+      );
+
+      const allSalaries = results.flatMap(dayData => 
+        dayData.expenses.filter(e => 
           e.title.startsWith('ЗП ') || e.title.startsWith('Премия ')
-        );
-        allSalaries.push(...daySalaries);
-      }
+        )
+      );
 
       setSalaries(allSalaries.sort((a, b) => b.date.localeCompare(a.date)));
     } catch (error) {
@@ -326,68 +326,65 @@ export default function HubContent({ today, recurringExpenses, summaries, initia
 
   if (activeTab === 'salaries') {
     return (
-      <div className="space-y-8 pb-20">
+      <div className="space-y-6 pb-20">
         <button 
           onClick={() => setActiveTab('menu')}
           className="flex items-center gap-2 text-gray-400 font-bold uppercase text-[10px] tracking-widest hover:text-purple-600 transition-colors"
         >
-          <LayoutGrid size={14} /> Назад в Хаб
+          <LayoutGrid size={14} /> Назад
         </button>
 
-        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-100 min-h-[500px] flex flex-col">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Зарплаты</h2>
+        <div className="bg-white p-6 rounded-[2rem] border border-gray-100 min-h-[400px] flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-lg font-black text-gray-900 tracking-tighter uppercase italic">Зарплаты</h2>
             <input 
               type="month" 
               value={salaryMonth}
               onChange={(e) => setSalaryMonth(e.target.value)}
-              className="text-xs font-bold uppercase p-2 bg-gray-50 rounded-xl border-none focus:ring-2 focus:ring-purple-500"
+              className="text-[10px] font-black uppercase p-2 bg-gray-50 rounded-xl border-none focus:ring-1 focus:ring-purple-500"
             />
           </div>
 
           {isLoadingSalaries ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
-              <Loader2 className="animate-spin" size={32} />
-              <span className="text-[10px] font-black uppercase tracking-widest">Загрузка данных...</span>
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-300 gap-2">
+              <Loader2 className="animate-spin" size={24} />
+              <span className="text-[9px] font-black uppercase tracking-widest">Загрузка...</span>
             </div>
           ) : salaries.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3 italic">
-              <CircleDollarSign size={48} className="opacity-20" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Выплат не найдено</span>
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-300 italic">
+              <span className="text-[9px] font-black uppercase tracking-widest">Нет данных</span>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-gray-50">
               {salaries.map((salary) => (
-                <div key={salary.id} className="bg-gray-50/50 p-4 rounded-3xl border border-gray-100 flex items-center justify-between group hover:bg-white hover:shadow-md transition-all duration-300">
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${salary.title.startsWith('Премия') ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>
-                      {salary.title.startsWith('Премия') ? <TrendingUp size={20} /> : <User size={20} />}
+                <div key={salary.id} className="py-3 flex items-center justify-between group">
+                  <div className="flex flex-col">
+                    <div className="text-xs font-black text-gray-800 uppercase tracking-tight">
+                      {salary.title.replace('ЗП ', '').replace('Премия ', '')}
                     </div>
-                    <div>
-                      <div className="text-sm font-black text-gray-900 uppercase tracking-tight">
-                        {salary.title.replace('ЗП ', '').replace('Премия ', '')}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
-                          {format(parseISO(salary.date), 'd MMMM', { locale: ru })}
-                        </span>
-                        <span className="text-gray-200 text-[10px]">•</span>
-                        <span className="text-[10px] font-black text-purple-500 uppercase tracking-tighter">
-                          {salary.title.startsWith('Премия') ? 'Премия' : 'Зарплата'}
-                        </span>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase">
+                        {format(parseISO(salary.date), 'dd.MM')}
+                      </span>
+                      <span className="text-[9px] font-black text-purple-400 uppercase tracking-tighter">
+                        {salary.title.startsWith('Премия') ? 'Премия' : 'ЗП'}
+                      </span>
+                      <span className="text-[9px] font-medium text-gray-300 uppercase tracking-tighter">
+                        {salary.payment_source === 'cash' ? 'Нал' : 'Р/С'}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-lg font-black text-gray-900">
-                      {salary.amount.toLocaleString()} ₽
-                    </div>
-                    <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                      {salary.payment_source === 'cash' ? 'Наличные' : 'Р/Счет'}
-                    </div>
+                  <div className="text-sm font-black text-gray-900">
+                    {salary.amount.toLocaleString()} ₽
                   </div>
                 </div>
               ))}
+              <div className="pt-4 mt-2 border-t border-gray-100 flex justify-between items-center">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Итого за месяц:</span>
+                <span className="text-sm font-black text-purple-600">
+                  {salaries.reduce((sum, s) => sum + s.amount, 0).toLocaleString()} ₽
+                </span>
+              </div>
             </div>
           )}
         </div>
