@@ -749,13 +749,13 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
       </section>
 
       {/* Block: Чек дня */}
-      <section className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-10 border border-gray-50">
+      <section className="bg-white rounded-[2.5rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6 border border-gray-50">
         <div className="font-black text-gray-900 uppercase tracking-widest text-[10px] opacity-30">Чек дня</div>
 
         {/* Expenses List */}
-        <div className="space-y-6">
+        <div className="space-y-3">
           <div className="text-[10px] font-black uppercase text-gray-900 tracking-widest px-1 opacity-20">Расходы за день</div>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {data.expenses.length > 0 ? data.expenses.map(exp => (
               <div key={exp.id} className="flex justify-between items-center group px-1">
                 <div className="flex-1">
@@ -778,9 +778,9 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
         </div>
 
         {/* Operations & Data List */}
-        <div className="space-y-6">
+        <div className="space-y-3">
           <div className="text-[10px] font-black uppercase text-gray-900 tracking-widest px-1 opacity-20">Операции и данные</div>
-          <div className="space-y-4">
+          <div className="space-y-2">
             {[...data.operations, ...data.discounts].length > 0 ? (
               <>
                 {data.operations.map(op => (
@@ -823,7 +823,7 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
         </div>
 
         {/* Financial Summary */}
-        <div className="pt-10 space-y-6 border-t border-gray-50">
+        <div className="pt-6 space-y-4 border-t border-gray-50">
           <div className="grid grid-cols-2 gap-8">
             <div className="space-y-1">
               <div className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Выручка</div>
@@ -835,9 +835,16 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
             </div>
           </div>
           
-          <div className="bg-gray-900 rounded-3xl p-6 flex justify-between items-center">
-            <div className="text-[10px] font-black text-white/40 uppercase tracking-widest">Чистая прибыль</div>
-            <div className="text-2xl font-black text-white">{(data.financials?.profit || 0).toLocaleString()} ₽</div>
+          <div className="space-y-3">
+            <div className="bg-gray-900 rounded-3xl p-6 flex justify-between items-center">
+              <div className="text-[8px] font-black text-white/40 uppercase tracking-widest">Чистая прибыль</div>
+              <div className="text-xl font-black text-white">{(data.financials?.profit || 0).toLocaleString()} ₽</div>
+            </div>
+            <div className="text-center">
+              <div className="text-[10px] font-bold text-gray-400">
+                {format(parseISO(date), 'd MMMM yyyy, eeee', { locale: ru })}
+              </div>
+            </div>
           </div>
         </div>
       </section>
