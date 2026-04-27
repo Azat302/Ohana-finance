@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { Shift, Financials, Expense, Operation, FullDayData, DashboardSummary, RecurringExpense, Discount, SafeTransaction, GlobalBalances, ActionLog, Salary } from '@/types';
+import { Shift, Financials, Expense, Operation, FullDayData, DashboardSummary, RecurringExpense, Discount, SafeTransaction, GlobalBalances, ActionLog } from '@/types';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
 
@@ -163,14 +163,15 @@ export async function getExpensesByMonth(month: string): Promise<Expense[]> {
   return allExpenses.sort((a, b) => b.date.localeCompare(a.date));
 }
 
-export async function getSalaries(): Promise<Salary[]> {
+export async function getAllOperations(): Promise<Operation[]> {
   const db = await readDb();
-  return db.salaries || [];
-}
-
-export async function addSalary(salary: Salary) {
-  const db = await readDb();
-  if (!db.salaries) db.salaries = [];
-  db.salaries.push(salary);
-  await writeDb(db);
+  const allOps: Operation[] = [];
+  
+  Object.keys(db).forEach(date => {
+    if (db[date].operations) {
+      allOps.push(...db[date].operations);
+    }
+  });
+  
+  return allOps.sort((a, b) => b.date.localeCompare(a.date));
 }

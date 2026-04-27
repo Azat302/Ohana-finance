@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Home, Calendar, LayoutGrid, Users } from 'lucide-react';
+import { Home, Calendar, LayoutGrid } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function Navigation() {
@@ -14,7 +14,6 @@ export default function Navigation() {
     { name: 'Дашборд', href: '/', icon: Home },
     { name: 'Смена', href: `/day/${today}`, icon: Calendar },
     { name: 'Хаб', href: '/hub', icon: LayoutGrid },
-    { name: 'Зарплаты', href: '/salaries', icon: Users },
   ];
 
   return (

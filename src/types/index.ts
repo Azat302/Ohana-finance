@@ -85,21 +85,11 @@ export interface GlobalBalances {
 
 export interface ActionLog {
   id: string;
+  date: string;
   timestamp: string;
-  date: string; // the date the action refers to
   action_type: string;
   description: string;
   details?: string;
   ip?: string;
   user_agent?: string;
-}
-
-export interface Salary {
-  id: string;
-  date: string;
-  person: string;
-  amount: number;
-  type: 'salary' | 'bonus' | 'prepayment';
-  payment_source: 'cash' | 'bank';
-  note?: string;
 }
