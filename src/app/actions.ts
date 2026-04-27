@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db-provider';
-import { Shift, Financials, Expense, Operation, RecurringExpense, Discount, SafeTransaction, GlobalBalances, ActionLog } from '@/types';
+import { Shift, Financials, Expense, Operation, RecurringExpense, Discount, SafeTransaction, GlobalBalances, ActionLog, Salary } from '@/types';
 import { revalidatePath } from 'next/cache';
 import { format, subDays, parseISO } from 'date-fns';
 import { headers } from 'next/headers';
@@ -457,6 +457,50 @@ export async function addActionLogAction(log: Omit<ActionLog, 'id' | 'timestamp'
     return { success: true };
   } catch (error) {
     console.error('addActionLogAction error:', error);
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function getSalariesAction() {
+  try {
+    return await db.getSalaries();
+  } catch (error) {
+    console.error('getSalariesAction error:', error);
+    throw error;
+  }
+}
+
+export async function addSalaryAction(salary: Salary) {
+  try {
+    await db.addSalary(salary);
+    
+    const { ip, userAgent } = await getMetadata();
+
+    // Если выплата из сейфа или банка, обновляем балансы
+    const balances = await db.getGlobalBalances();
+    if (salary.payment_source === 'cash') {
+      const newSafeBalance = (balances.safe || 0) - salary.amount;
+      await db.saveGlobalBalances({ safe: newSafeBalance });
+    } else {
+      const newBankBalance = (balances.bank || 0) - salary.amount;
+      await db.saveGlobalBalances({ bank: newBankBalance });
+    }
+
+    await db.addActionLog({
+      date: salary.date,
+      action_type: 'SALARY_ADD',
+      description: `Выплата ${salary.type === 'salary' ? 'ЗП' : salary.type === 'bonus' ? 'премии' : 'аванса'}: ${salary.person}`,
+      details: `Сумма: ${salary.amount} ₽, Источник: ${salary.payment_source === 'cash' ? 'Сейф' : 'Расчетный счет'}`,
+      ip,
+      user_agent: userAgent
+    });
+
+    revalidatePath('/salaries');
+    revalidatePath('/hub');
+    revalidatePath('/');
+    return { success: true };
+  } catch (error) {
+    console.error('addSalaryAction error:', error);
     return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

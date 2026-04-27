@@ -10,7 +10,8 @@ import {
   GlobalBalances,
   ActionLog,
   FullDayData,
-  DashboardSummary
+  DashboardSummary,
+  Salary
 } from '../types';
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
@@ -180,6 +181,26 @@ export async function getRecurringExpenses(): Promise<RecurringExpense[]> {
     .eq('active', true);
   if (error) throw error;
   return data || [];
+}
+
+export async function getSalaries(): Promise<Salary[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('salaries')
+    .select('*')
+    .order('date', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addSalary(salary: Salary): Promise<void> {
+  const supabase = getSupabase();
+  if (!supabase) return;
+  const { error } = await supabase
+    .from('salaries')
+    .upsert(salary);
+  if (error) throw error;
 }
 
 export async function saveRecurringExpense(item: RecurringExpense): Promise<void> {

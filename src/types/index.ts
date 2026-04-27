@@ -93,3 +93,13 @@ export interface ActionLog {
   ip?: string;
   user_agent?: string;
 }
+
+export interface Salary {
+  id: string;
+  date: string;
+  person: string;
+  amount: number;
+  type: 'salary' | 'bonus' | 'prepayment';
+  payment_source: 'cash' | 'bank';
+  note?: string;
+}
