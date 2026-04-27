@@ -14,16 +14,17 @@ import {
   deleteItemAction,
   deleteDayAction 
 } from '@/app/actions';
-import { Trash2, Banknote, Coffee, Car, X, Percent, Loader2, Wallet, Lock, UserCheck, WalletCards, ShieldCheck, Pencil } from 'lucide-react';
+import { Trash2, Banknote, Coffee, Car, X, Percent, Loader2, Wallet, Lock, UserCheck, WalletCards, ShieldCheck, Pencil, CreditCard } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { SafeTransaction } from '@/types';
+import { SafeTransaction, RecurringExpense } from '@/types';
 
 interface Props {
   initialData: FullDayData;
   date: string;
+  scheduledExpenses?: RecurringExpense[];
 }
 
-export default function OperationalPanel({ initialData, date }: Props) {
+export default function OperationalPanel({ initialData, date, scheduledExpenses = [] }: Props) {
   const isToday = date === format(new Date(), 'yyyy-MM-dd');
   const [data, setData] = useState<FullDayData>(initialData);
   const [modal, setModal] = useState<'taxi' | 'staff_hookah' | 'discount' | 'password' | 'expense' | 'staff' | 'salary' | 'salary_person' | 'salary_type' | 'salary_amount' | 'safe' | 'safe_manual' | 'delete_confirm' | null>(null);
@@ -390,6 +391,60 @@ export default function OperationalPanel({ initialData, date }: Props) {
 
   return (
     <div className="space-y-6 pb-32 max-w-lg mx-auto">
+      {/* New Header - Hub Style - moved to top */}
+      <div className="bg-gray-50/50 backdrop-blur-md px-6 py-4 sticky top-0 z-30 transition-all border-b border-gray-100">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-black text-gray-900 tracking-tight">Смена</h1>
+          
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-bold text-gray-400">Сейф:</span>
+            <span className="text-sm font-black text-blue-600">
+              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()} ₽
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => isLocked ? setModal('password') : setIsLocked(true)} 
+              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100"
+            >
+              <Pencil className="h-5 w-5 text-gray-900" />
+            </button>
+            <button 
+              onClick={() => setModal('delete_confirm')}
+              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100 group"
+            >
+              <Trash2 className="h-5 w-5 text-gray-900 group-hover:text-red-500 transition-colors" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Scheduled Expenses Section */}
+      {scheduledExpenses.length > 0 && (
+        <section className="px-4">
+          <div className="bg-blue-50 border border-blue-100 rounded-[2rem] p-5 space-y-3">
+            <div className="flex items-center gap-2 text-blue-600 text-[10px] font-black uppercase tracking-widest">
+              <CreditCard size={14} /> Запланированные постоянные траты
+            </div>
+            <div className="space-y-2">
+              {scheduledExpenses.map(exp => (
+                <div key={exp.id} className="flex justify-between items-center">
+                  <span className="font-bold text-gray-900">{exp.title}</span>
+                  <span className="font-black text-blue-600">{exp.amount.toLocaleString()} ₽</span>
+                </div>
+              ))}
+              <div className="pt-2 border-t border-blue-100 flex justify-between items-center">
+                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Итого к списанию</span>
+                <span className="text-lg font-black text-blue-700">
+                  {scheduledExpenses.reduce((sum, e) => sum + e.amount, 0).toLocaleString()} ₽
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Modals - Optimized for Mobile Touch */}
       {modal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -620,35 +675,6 @@ export default function OperationalPanel({ initialData, date }: Props) {
           </div>
         </div>
       )}
-
-      {/* New Header - Hub Style */}
-      <div className="bg-gray-50/50 backdrop-blur-md px-6 py-4 sticky top-0 z-30 transition-all border-b border-gray-100">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-black text-gray-900 tracking-tight">Смена</h1>
-          
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-bold text-gray-400">Сейф:</span>
-            <span className="text-sm font-black text-blue-600">
-              {((data.shift?.start_cash || 0) + (data.safe_transactions?.reduce((sum, t) => sum + t.amount, 0) || 0)).toLocaleString()} ₽
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => isLocked ? setModal('password') : setIsLocked(true)} 
-              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100"
-            >
-              <Pencil className="h-5 w-5 text-gray-900" />
-            </button>
-            <button 
-              onClick={() => setModal('delete_confirm')}
-              className="p-2 hover:bg-white rounded-2xl transition-all active:scale-90 shadow-sm border border-transparent hover:border-gray-100 group"
-            >
-              <Trash2 className="h-5 w-5 text-gray-900 group-hover:text-red-500 transition-colors" />
-            </button>
-          </div>
-        </div>
-      </div>
 
       <div className="px-4 space-y-6 pt-2">
         {/* Block: Персонал и касса */}
