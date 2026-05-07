@@ -611,6 +611,19 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
                 </div>
               ) : (
                 <>
+                  {modal === 'staff' && (
+                    <div className="space-y-1">
+                      <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">Имя</label>
+                      <input 
+                        name="person" 
+                        type="text" 
+                        placeholder="Кому дали" 
+                        className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black" 
+                        required 
+                        autoFocus 
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <label className="text-[8px] uppercase font-bold text-gray-400 ml-1">
                       {modal === 'staff_hookah' ? 'Количество кальянов' : modal === 'taxi' ? 'Сумма такси (₽)' : modal === 'staff' ? 'Количество' : 'Название расхода'}
@@ -621,7 +634,7 @@ export default function OperationalPanel({ initialData, date, scheduledExpenses 
                       placeholder={modal === 'expense' ? 'Напр: Хозтовары' : '0'} 
                       className="w-full p-5 bg-gray-50 rounded-2xl border-none text-xl font-black text-center" 
                       required 
-                      autoFocus 
+                      autoFocus={modal !== 'staff'} 
                     />
                   </div>
                   {modal === 'expense' && (
